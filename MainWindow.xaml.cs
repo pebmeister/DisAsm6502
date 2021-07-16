@@ -226,10 +226,9 @@ namespace DisAsm6502
                         }
                     }
 
-                    View.RebuildAssemblerLines();
-
+                    // View.RebuildAssemblerLines();
+                    e.Command.SetIsRunning(false);
                 });
-                e.Command.SetIsRunning(false);
             });
         }
 

@@ -16,6 +16,18 @@ namespace DisAsm6502.ViewModel
     /// </summary>
     public class ViewModel : Notifier
     {
+        private bool _rebuilding;
+
+        public bool ReBuilding
+        {
+            get => _rebuilding;
+            set
+            {
+                _rebuilding = value;
+                OnPropertyChanged();
+            }
+        }
+
         /// <summary>
         /// Dictionary to hold well known address and symbols
         /// </summary>
@@ -410,8 +422,6 @@ namespace DisAsm6502.ViewModel
             {
                 _loadAddress = value;
                 OnPropertyChanged();
-
-                Org = $".ORG ${LoadAddress.ToHexWord()}";
             }
         }
 
@@ -428,9 +438,6 @@ namespace DisAsm6502.ViewModel
             {
                 _data = value;
                 OnPropertyChanged();
-
-                // reparse
-                BuildAssemblerLines();
             }
         }
 
@@ -717,14 +724,19 @@ namespace DisAsm6502.ViewModel
         };
 
         /// <summary>
-        /// Sysmbols used in the program
+        /// Symbols used in the program
         /// </summary>
         public Dictionary<int, string> UsedSymbols = new Dictionary<int, string>();
 
         /// <summary>
-        /// Symbols in program
+        /// Symbols used in the program
         /// </summary>
-        public List<string> Symbols = new List<string>();
+        public Dictionary<int, string> LocalSymbols = new Dictionary<int, string>();
+
+        /// <summary>
+        /// Symbols used in the program
+        /// </summary>
+        public Dictionary<int, string> UsedLocalSymbols = new Dictionary<int, string>();
 
         /// <summary>
         /// Determines if symbol is within the program if external
@@ -737,36 +749,71 @@ namespace DisAsm6502.ViewModel
         }
 
         /// <summary>
+        /// Build the local symbols
+        /// The label will be the line number
+        /// </summary>
+        private void BuildLocalSymbols()
+        {
+            LocalSymbols.Clear();
+            UsedLocalSymbols.Clear();
+            var index = 0;
+            foreach (var assemblerLine in AssemblerLineCollection)
+            {
+                LocalSymbols.Add(assemblerLine.Address, $"L_{index++:D4}");
+            }
+        }
+
+        /// <summary>
         /// Get symbol for an address
         /// </summary>
         /// <param name="symAddress">address of symbol</param>
-        /// <param name="len">length of address (1 for page zero 2 for all others9</param>
+        /// <param name="len">length of address (1 for page zero 2 for all others</param>
         /// <returns>symbol</returns>
         private string GetSymCommon(int symAddress, int len)
         {
+            const int symRange = 3;
+
             var sym = len == 1 ? $"${symAddress.ToHex()}" : $"${symAddress.ToHexWord()}";
             if (IsSymLocal(symAddress))
             {
-                Symbols.Add(sym);
-            }
-            else
-            {
-                for (var r = 0; r < 2; ++r)
+                for (var range = 0; range < symRange; ++range)
                 {
-                    if (!_builtInSymbols.TryGetValue(symAddress - r, out var tempSym))
+                    if (!LocalSymbols.TryGetValue(symAddress - range, out var tempSym))
                     {
                         continue;
                     }
 
                     sym = tempSym;
-                    if (!UsedSymbols.ContainsKey(symAddress - r))
+                    if (!UsedLocalSymbols.ContainsKey(symAddress - range))
                     {
-                        UsedSymbols.Add(symAddress - r, sym);
+                        UsedLocalSymbols.Add(symAddress - range, sym);
+                    }
+                    if (range != 0)
+                    {
+                        sym = $"{sym} + {range}";
                     }
 
-                    if (r != 0)
+                    return sym;
+                }
+            }
+            else
+            {
+                for (var range = 0; range < symRange; ++range)
+                {
+                    if (!_builtInSymbols.TryGetValue(symAddress - range, out var tempSym))
                     {
-                        sym = $"{sym} + {r}";
+                        continue;
+                    }
+
+                    sym = tempSym;
+                    if (!UsedSymbols.ContainsKey(symAddress - range))
+                    {
+                        UsedSymbols.Add(symAddress - range, sym);
+                    }
+
+                    if (range != 0)
+                    {
+                        sym = $"{sym} + {range}";
                     }
 
                     return sym;
@@ -787,7 +834,7 @@ namespace DisAsm6502.ViewModel
         }
 
         /// <summary>
-        /// Get a1 byte symbol
+        /// Get a 1 byte symbol
         /// </summary>
         /// <param name="symAddress">1 byte adddress</param>
         /// <returns>symbol for address</returns>
@@ -806,12 +853,12 @@ namespace DisAsm6502.ViewModel
         {
             var str = $"{op.Opcode.ToUpperInvariant()} ";
             var symAddress = offset + 2 < Data.Length
-                ? Data[offset + 1] + (Data[offset + 2] * 256)
+                ? Data[offset + 1] + Data[offset + 2] * 256
                 : -1;
 
             var pgZeroSymAddress = offset + 1 < Data.Length
                 ? Data[offset + 1]
-                : 0;
+                : -1;
 
             string sym;
             int target;
@@ -883,7 +930,7 @@ namespace DisAsm6502.ViewModel
                     break;
 
                 case AddressingModes.R:
-                    d = ((Data[offset + 1] & 0x80) == 0x80)
+                    d = (Data[offset + 1] & 0x80) == 0x80
                         ? (-1 & ~0xFF) | Data[offset + 1]
                         : Data[offset + 1];
                     target = LoadAddress + offset + d;
@@ -892,7 +939,7 @@ namespace DisAsm6502.ViewModel
                     break;
 
                 case AddressingModes.Zr:
-                    d = ((Data[offset + 1] & 0x80) == 0x80)
+                    d = (Data[offset + 1] & 0x80) == 0x80
                         ? (-1 & ~0xFF) | Data[offset + 1]
                         : Data[offset + 1];
                     target = LoadAddress + offset + d;
@@ -948,7 +995,9 @@ namespace DisAsm6502.ViewModel
 
                     bytes = bytes.Trim();
                     opCode = FormatOpCode(Ops[Data[offset]], offset);
-                    return new AssemblerLine(address, bytes, opCode, AssemblerLine.FormatType.Opcode, sz);
+                    var line = new AssemblerLine(address, bytes, opCode, AssemblerLine.FormatType.Opcode, sz);
+                    line.PropertyChanged += LineOnPropertyChanged;
+                    return line;
                 }
 
                 sz = 1;
@@ -962,12 +1011,10 @@ namespace DisAsm6502.ViewModel
             {
                 --sz;
             }
-
             if (sz == 0)
             {
                 return null;
             }
-
             bytes = "";
             for (var len = 0; len < sz; ++len)
             {
@@ -976,12 +1023,35 @@ namespace DisAsm6502.ViewModel
 
             bytes = bytes.Trim();
 
-            opCode = sz == 1
-                ? $".BYTE ${Data[offset].ToHex()}"
-                : $".WORD ${Data[offset + 1].ToHex()}{Data[offset].ToHex()}";
+            int addr;
+            string sym;
+            string directive;
+            if (sz == 1)
+            {
+                addr = Data[offset];
+                directive = ".BYTE";
+                sym = $"${addr.ToHex()}";
+            }
+            else
+            {
+                addr = Data[offset] + Data[offset + 1] * 256;
+                directive = ".WORD";
+                sym = $"${addr.ToHexWord()}";
+            }
+            if (LocalSymbols.TryGetValue(addr, out var tempSym))
+            {
+                sym = tempSym;
+                if (!UsedLocalSymbols.ContainsKey(addr))
+                {
+                    UsedLocalSymbols.Add(addr, sym);
+                }
+            }
+            opCode = $"{directive} {sym}";
 
-            return new AssemblerLine(address, bytes, opCode,
+            var dataLine = new AssemblerLine(address, bytes, opCode,
                 sz == 1 ? AssemblerLine.FormatType.Byte : AssemblerLine.FormatType.Word, sz);
+            dataLine.PropertyChanged += LineOnPropertyChanged;
+            return dataLine;
         }
 
         /// <summary>
@@ -989,14 +1059,16 @@ namespace DisAsm6502.ViewModel
         /// </summary>
         private void BuildAssemblerLines()
         {
-            UsedSymbols.Clear();
+            ReBuilding = true;
 
+            UsedSymbols.Clear();
+            UsedLocalSymbols.Clear();
             AssemblerLineCollection.Clear();
-            Symbols.Clear();
 
             var offset = 0;
-            LoadAddress = Data[0] + (Data[1] * 256);
+            LoadAddress = Data[0] + Data[1] * 256;
             offset += 2;
+            var index = 0;
             while (offset < Data.Length)
             {
                 var line = BuildOpCode(offset, AssemblerLine.FormatType.Opcode);
@@ -1006,44 +1078,31 @@ namespace DisAsm6502.ViewModel
                     return;
                 }
 
-                line.PropertyChanged += LineOnPropertyChanged;
                 offset += line.Size;
+                line.RowIndex = index++;
                 AssemblerLineCollection.Add(line);
             }
 
+            ReBuilding = false;
+
             SyncRowsLabels();
+
             ValidateCollection();
         }
 
         /// <summary>
-        /// Rebuild AssemblerLineCollection after editing a line
+        /// Reset the Assembler indexes
         /// </summary>
-        public void RebuildAssemblerLines()
+        private void ResetIndexes()
         {
-            UsedSymbols.Clear();
-            Symbols.Clear();
-
-            var temp = new AssemblerLine[AssemblerLineCollection.Count];
-            AssemblerLineCollection.CopyTo(temp, 0);
-
-            AssemblerLineCollection.Clear();
-            LoadAddress = Data[0] + (Data[1] * 256);
-
-            foreach (var oldLine in temp)
+            var addr = LoadAddress;
+            for (var r = 0; r < AssemblerLineCollection.Count; ++r)
             {
-                var line = BuildOpCode(oldLine.Address - LoadAddress + 2, (AssemblerLine.FormatType) oldLine.Format);
-                if (line == null)
-                {
-                    _ = MessageBox.Show("Failed to disassemble");
-                    return;
-                }
-
-                line.PropertyChanged += LineOnPropertyChanged;
-                AssemblerLineCollection.Add(line);
+                AssemblerLineCollection[r].RowIndex = r;
+                AssemblerLineCollection[r].Address = addr;
+                AssemblerLineCollection[r].Label = "";
+                addr += AssemblerLineCollection[r].Size;
             }
-
-            SyncRowsLabels();
-            ValidateCollection();
         }
 
         /// <summary>
@@ -1052,51 +1111,51 @@ namespace DisAsm6502.ViewModel
         /// </summary>
         private void SyncRowsLabels()
         {
-            Symbols.Sort();
-
-            var symbols = new List<string>();
-            var lastAdd = "";
-            foreach (var t in Symbols.Where(t => t != lastAdd))
+            if (ReBuilding)
             {
-                symbols.Add(t);
-                lastAdd = t;
+                return;
             }
 
-            for (var r = 0; r < AssemblerLineCollection.Count; ++r)
-            {
-                AssemblerLineCollection[r].RowIndex = r;
-                AssemblerLineCollection[r].Label = "";
-            }
+            var index = 0;
+            LocalSymbols.Clear();
+            UsedLocalSymbols.Clear();
+            ResetIndexes();
+            BuildLocalSymbols();
 
-            for (var i = 0; i < symbols.Count; ++i)
+            // Copy the current lines
+            var temp = new AssemblerLine[AssemblerLineCollection.Count];
+            AssemblerLineCollection.CopyTo(temp, 0);
+            AssemblerLineCollection.Clear();
+
+            // Rebuild lines with possible new lables
+            foreach (var oldLine in temp)
             {
-                var addressFound = false;
-                foreach (var assemblerLine in AssemblerLineCollection)
+                var line = BuildOpCode(oldLine.Address - LoadAddress + 2, (AssemblerLine.FormatType)oldLine.Format);
+                if (line == null)
                 {
-                    var add =
-                        $"${((assemblerLine.Address & 0xFF00) >> 8).ToHex()}{(assemblerLine.Address & 0xFF).ToHex()}";
-                    if (string.Compare(add, symbols[i], StringComparison.CurrentCultureIgnoreCase) == 0)
-                    {
-                        assemblerLine.Label = $"L_{i:D3}";
-                        addressFound = true;
-                    }
-
-                    assemblerLine.OpCodes =
-                        assemblerLine.OpCodes.Replace(symbols[i], $"L_{i:D3}");
+                    _ = MessageBox.Show("Failed to disassemble");
+                    return;
                 }
 
-                if (addressFound)
+                line.RowIndex = index++;
+                AssemblerLineCollection.Add(line);
+            }
+
+            // Now add the left column label for the used labels
+            foreach (var assemblerLine in AssemblerLineCollection)
+            {
+                if (!UsedLocalSymbols.ContainsKey(assemblerLine.Address))
                 {
                     continue;
                 }
 
-                foreach (var assemblerLine in AssemblerLineCollection)
+                if (LocalSymbols.TryGetValue(assemblerLine.Address, out var sym))
                 {
-                    assemblerLine.OpCodes =
-                        assemblerLine.OpCodes.Replace($"L_{i:D3}", $"L_{i - 1:D3} + 1");
+                    assemblerLine.Label = sym;
                 }
             }
 
+            // build the external labels
             SymCollection.Clear();
             foreach (var usedSymbolsKey in UsedSymbols.Keys.OrderBy(key => key))
             {
@@ -1108,6 +1167,7 @@ namespace DisAsm6502.ViewModel
                 }
             }
 
+            // add blank line and org
             SymCollection.Add("");
             SymCollection.Add($"{string.Empty,-10}.ORG ${LoadAddress.ToHexWord()}");
         }
@@ -1128,7 +1188,6 @@ namespace DisAsm6502.ViewModel
                                         $"{assemblerLine.Label} {assemblerLine.OpCodes} {assemblerLine.Comment}");
                     return;
                 }
-
                 if (address != assemblerLine.Address)
                 {
                     _ = MessageBox.Show($"Address out of sync ROW {assemblerLine.RowIndex}.\n" +
@@ -1148,11 +1207,9 @@ namespace DisAsm6502.ViewModel
         /// <param name="format">new format</param>
         public void FormatLine(AssemblerLine line, AssemblerLine.FormatType format)
         {
-            var oldSz = line.Size;
+            var oldSize = line.Size;
             var newOffset = line.Address - LoadAddress + 2;
             var newLine = BuildOpCode(newOffset, format);
-
-            newLine.PropertyChanged += LineOnPropertyChanged;
 
             newLine.RowIndex = line.RowIndex;
             AssemblerLineCollection.RemoveAt(line.RowIndex);
@@ -1160,18 +1217,18 @@ namespace DisAsm6502.ViewModel
 
             var bytesToInsert = 0;
             var index = newLine.RowIndex;
-            if (oldSz > newLine.Size)
+            if (oldSize > newLine.Size)
             {
-                bytesToInsert = oldSz - newLine.Size;
+                bytesToInsert = oldSize - newLine.Size;
                 newOffset += newLine.Size;
             }
-            else if (newLine.Size > oldSz)
+            else if (newLine.Size > oldSize)
             {
                 var delIndex = newLine.RowIndex + 1;
                 var n = AssemblerLineCollection[delIndex].Size;
                 AssemblerLineCollection.RemoveAt(delIndex);
 
-                var w = newLine.Size - oldSz;
+                var w = newLine.Size - oldSize;
                 bytesToInsert = n - w;
                 newOffset += newLine.Size;
             }
@@ -1180,7 +1237,6 @@ namespace DisAsm6502.ViewModel
             {
                 var insertLine = BuildOpCode(newOffset, AssemblerLine.FormatType.Byte);
                 insertLine.RowIndex = ++index;
-                insertLine.PropertyChanged += LineOnPropertyChanged;
                 AssemblerLineCollection.Insert(insertLine.RowIndex, insertLine);
                 bytesToInsert -= insertLine.Size;
                 newOffset += insertLine.Size;
@@ -1210,6 +1266,25 @@ namespace DisAsm6502.ViewModel
         public ViewModel()
         {
             AssemblerLineCollection = new ObservableCollection<AssemblerLine>();
+            PropertyChanged += OnPropertyChanged;
+        }
+
+        /// <summary>
+        /// A property has changed
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.Compare(e.PropertyName, "LoadAdddress",
+                StringComparison.CurrentCultureIgnoreCase) == 0)
+            {
+                Org = $".ORG ${LoadAddress.ToHexWord()}";
+            }
+            else if (string.Compare(e.PropertyName, "Data", StringComparison.CurrentCultureIgnoreCase) == 0)
+            {
+                BuildAssemblerLines();
+            }
         }
 
         /// <summary>
