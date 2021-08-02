@@ -1,0 +1,28 @@
+﻿<Window x:Class="DisAsm6502.LoadAddress"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DisAsm6502"
+        mc:Ignorable="d"
+        Title="Load Address" Height="120" Width="300"
+        WindowStartupLocation="CenterOwner"
+        Loaded="LoadAddress_OnLoaded">
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.Close" CanExecute="Close_OnCanExecute" Executed="Close_OnExecuted"></CommandBinding>
+        <CommandBinding Command="ApplicationCommands.Find" CanExecute="Find_OnCanExecute" Executed="Find_OnExecuted"></CommandBinding>
+    </Window.CommandBindings>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Height="Auto" x:Name="LoadAddressTextBlock" VerticalAlignment="Top"  Margin="10,0,0,0">Load Address $0000 -</TextBlock>
+        <TextBox x:Name="LoadAddressTextBox" Grid.Row="1" HorizontalContentAlignment="Stretch" Margin="10,5,10,5" />
+        <StackPanel Orientation="Horizontal" Grid.Row="2" HorizontalAlignment="Right">
+            <Button IsDefault="True" Content="ok" VerticalAlignment="Bottom" HorizontalAlignment="Right" Padding="20,5" Command="ApplicationCommands.Find" />
+            <Button Margin="10,0, 10,0" IsCancel="True" Content="Cancel" VerticalAlignment="Bottom" HorizontalAlignment="Right" Padding="20,5" Command="ApplicationCommands.Close" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -10,13 +10,16 @@
         MinWidth="550"
         MaxWidth="550"
         MinHeight="300"
+        Closing="MainWindow_OnClosing"
         WindowStartupLocation="CenterScreen"
 >
     <Window.Resources>
         <RoutedUICommand x:Key="FormatLine" Text="Format Line" />
+        <RoutedUICommand x:Key="GotoLine" Text="Goto Line" />
+        <RoutedUICommand x:Key="SetLoadAddress" Text="Set Load Address" />
 
-        <DataTemplate DataType="{x:Type model:AssemblerLine}">
-            <Grid>
+        <DataTemplate DataType="{x:Type model:AssemblerLine}" >
+            <Grid Focusable="True">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="90" />
                     <ColumnDefinition Width="210" />
@@ -33,9 +36,19 @@
         <CommandBinding Command="ApplicationCommands.Open" Executed="Open_OnExecuted" CanExecute="Open_OnCanExecute" />
         <CommandBinding Command="ApplicationCommands.Save" Executed="Save_OnExecuted" CanExecute="Save_OnCanExecute" />
         <CommandBinding Command="{StaticResource FormatLine}" Executed="FormatLine_OnExecuted" CanExecute="FormatLine_OnCanExecute"/>
+        <CommandBinding Command="{StaticResource GotoLine}" Executed="GotoLine_OnExecuted" CanExecute="GotoLine_OnCanExecute"/>
+        <CommandBinding Command="{StaticResource SetLoadAddress}" Executed="SetLoadAddress_OnExecuted" CanExecute="SetLoadAddress_OnCanExecute"/>
     </Window.CommandBindings>
+    
+    <Window.InputBindings>
+        <KeyBinding Command="{StaticResource GotoLine}" Key="G" Modifiers="Control" />
+        <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="0" Key="O" Modifiers="Shift" />
+        <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="1" Key="B" Modifiers="Shift" />
+        <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="2" Key="W" Modifiers="Shift" />
+        <KeyBinding Command="{StaticResource SetLoadAddress}" Key="L" Modifiers="Shift" />
+    </Window.InputBindings>
 
-    <Grid>
+    <Grid FocusManager.FocusedElement="{Binding ElementName=MainListBox, Path=SelectedItem}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -46,14 +59,17 @@
                 <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="ApplicationCommands.Open" Cursor="Hand">Open</Button>
                 <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="ApplicationCommands.Save" Cursor="Hand">Export Source</Button>
             </ToolBarPanel>
+            <ToolBarPanel Orientation="Horizontal" Background="LightGray" Margin="5,0,0,0">
+                <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="{StaticResource SetLoadAddress}" Cursor="Hand">Set Load Address</Button>
+            </ToolBarPanel>
         </ToolBar>
         <ListBox x:Name="SymListBox" Grid.Row="1" MaxHeight="100" SelectionMode="Single" ItemsSource="{Binding SymCollection}" FontFamily="Courier New" FontSize="14" FontWeight="Bold"/>
-        <ListBox x:Name="MainListBox" Grid.Row="2" ItemsSource="{Binding Path=AssemblerLineCollection}" SelectionMode="Extended" Cursor="Hand" >
+        <ListBox x:Name="MainListBox" Grid.Row="2" ItemsSource="{Binding Path=AssemblerLineCollection}" IsTabStop="True" SelectionMode="Extended" Cursor="Hand" >
             <ListBox.ContextMenu>
                 <ContextMenu x:Name="FormatContextMenu" Cursor="Hand" >
-                    <MenuItem Header="OpCode" Command="{StaticResource FormatLine}" CommandParameter="0"/>
-                    <MenuItem Header="Byte" Command="{StaticResource FormatLine}" CommandParameter="1" />
-                    <MenuItem Header="Word" Command="{StaticResource FormatLine}" CommandParameter="2" />
+                    <MenuItem Header="OpCode" InputGestureText="Shift + O" Command="{StaticResource FormatLine}" CommandParameter="0"/>
+                    <MenuItem Header="Byte" InputGestureText="Shift + B" Command="{StaticResource FormatLine}" CommandParameter="1" />
+                    <MenuItem Header="Word" InputGestureText="Shift + H" Command="{StaticResource FormatLine}" CommandParameter="2" />
                 </ContextMenu>
             </ListBox.ContextMenu>
         </ListBox>

@@ -61,6 +61,7 @@
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -80,11 +81,20 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Extensions.cs" />
+    <Compile Include="LoadAddress.xaml.cs">
+      <DependentUpon>LoadAddress.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Model\AssemblerLine.cs" />
     <Compile Include="Model\Op.cs" />
     <Compile Include="Notifier.cs" />
-    <Compile Include="Properties\Annotations.cs" />
     <Compile Include="ViewModel\ViewModel.cs" />
+    <Compile Include="GotoLine.xaml.cs">
+      <DependentUpon>GotoLine.xaml</DependentUpon>
+    </Compile>
+    <Page Include="LoadAddress.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -97,6 +107,10 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Page Include="GotoLine.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">
@@ -124,6 +138,11 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="Ops.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Symbols.xml" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

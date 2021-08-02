@@ -1,12 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using DisAsm6502.Annotations;
 using DisAsm6502.Model;
 using Microsoft.Win32;
 
@@ -22,14 +23,52 @@ namespace DisAsm6502
         public MainWindow()
         {
             InitializeComponent();
-            View = new ViewModel.ViewModel();
+            View = new ViewModel.ViewModel{Owner = this};
             DataContext = View;
+
+            FormatQueue = new Queue<Tuple<int, int>>();
+            Task.Run(ProcessQueue);
         }
+
+        private Queue<Tuple<int, int>> _formatQueue;
+
+        public Queue<Tuple<int, int>> FormatQueue
+        {
+            get => _formatQueue;
+            set
+            {
+                _formatQueue = value;
+                OnPropertyChanged();
+            }
+        }
+
+
+        private ICommand _gotoLine;
+
+        public ICommand GotoLine => _gotoLine ?? (_gotoLine = FindResource("GotoLine") as ICommand);
+
+        private ICommand _formatLine;
+
+        public ICommand FormatLine => _formatLine ?? (_formatLine = FindResource("FormatLine") as ICommand);
+
+        private ICommand _setLoadAddress;
+
+        public ICommand SetLoadAddress => _setLoadAddress ?? (_setLoadAddress = FindResource("SetLoadAddress") as ICommand);
 
         /// <summary>
         /// ViewModel
         /// </summary>
-        private ViewModel.ViewModel View { get; }
+        private ViewModel.ViewModel _view;
+
+        public ViewModel.ViewModel View
+        {
+            get => _view;
+            set
+            {
+                _view = value;
+                OnPropertyChanged();
+            }
+        }
 
         private string _filename;
 
@@ -42,6 +81,16 @@ namespace DisAsm6502
             set
             {
                 _filename = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int QueueState
+        {
+            get => _queueState;
+            set
+            {
+                _queueState = value;
                 OnPropertyChanged();
             }
         }
@@ -60,11 +109,12 @@ namespace DisAsm6502
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    var fi = new FileInfo(FileName);
                     var saveFileDlg = new SaveFileDialog
                     {
-                        FileName = "filename",
+                        FileName = $"{fi.Name.Replace(fi.Extension,"")}",
                         DefaultExt = ".asm",
-                        Filter = "Assembler file (.asm)|*.asm|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+                        Filter = "Assembler files |*.asm|Text files (*.txt)|*.txt|All files (*.*)|*.*"
                     };
 
                     var result = saveFileDlg.ShowDialog(this);
@@ -76,7 +126,7 @@ namespace DisAsm6502
 
                     using (TextWriter writer = File.CreateText(saveFileDlg.FileName))
                     {
-                        var fi = new FileInfo(FileName);
+                        fi = new FileInfo(saveFileDlg.FileName);
 
                         writer.WriteLine($"; File created from {fi.Name} by DisAsm6502");
                         writer.WriteLine();
@@ -117,8 +167,7 @@ namespace DisAsm6502
                 return;
             }
 
-            var formatLine = ((FrameworkElement)sender).FindResource("FormatLine") as ICommand;
-            if (formatLine.IsRunning() || ApplicationCommands.Open.IsRunning() ||
+            if (FormatLine.IsRunning() || ApplicationCommands.Open.IsRunning() ||
                 ApplicationCommands.Save.IsRunning())
             {
                 e.CanExecute = false;
@@ -131,7 +180,7 @@ namespace DisAsm6502
         /// <summary>
         /// Open_OnExecuted
         ///
-        /// Open .prg file and load it
+        /// Open .prg or .bin file and load it
         /// </summary>
         /// <param name="sender">Open button</param>
         /// <param name="e">execution event arguments</param>
@@ -144,7 +193,7 @@ namespace DisAsm6502
                 {
                     var openFileDlg = new OpenFileDialog
                     {
-                        Filter = "Program Files (.prg)|*.prg|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+                        Filter = "Commodore Files|*.prg;*.bin;|Program Files (.prg)|*.prg|Bin Files (.bin)|*.bin|All files (*.*)|*.*"
                     };
 
                     var selected = openFileDlg.ShowDialog();
@@ -157,7 +206,8 @@ namespace DisAsm6502
                     View.UsedSymbols.Clear();
 
                     FileName = openFileDlg.FileName;
-
+                    var fi = new FileInfo(FileName);
+                    View.BinFile = string.Compare(fi.Extension, ".bin", StringComparison.CurrentCultureIgnoreCase) == 0;
                     // Read the contents of the file into a stream
                     var fileStream = openFileDlg.OpenFile();
                     using (var reader = new BinaryReader(fileStream))
@@ -165,7 +215,7 @@ namespace DisAsm6502
                         View.Data = reader.ReadBytes((int)fileStream.Length);
                     }
 
-                    MainListBox.IsEnabled = View.Data.Length > 0;
+                    MainListBox.IsEnabled = View.Data.Length > 2;
 
                     e.Command.SetIsRunning(false);
                 });
@@ -182,15 +232,74 @@ namespace DisAsm6502
         /// <param name="e">can execute command args</param>
         private void Open_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
         {
-            var formatLine = ((FrameworkElement)sender).FindResource("FormatLine") as ICommand;
-            if (formatLine.IsRunning() || ApplicationCommands.Open.IsRunning() ||
-                ApplicationCommands.Save.IsRunning())
+            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
+                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
             {
                 e.CanExecute = false;
                 return;
             }
 
             e.CanExecute = true;
+        }
+
+        private int FindAddress(int address)
+        {
+            var low = 0;
+            var max = View.AssemblerLineCollection.Count - 1;
+            var high = max;
+
+            while (low <= high)
+            {
+                var guess = low +  ((high - low)  / 2);
+
+                if (View.AssemblerLineCollection[guess].Address < address)
+                {
+                    if (low == guess)
+                    {
+                        if (View.AssemblerLineCollection[high].Address == address)
+                        {
+                            return high;
+                        }
+                        return -1;
+                    }
+                    low = guess;
+                }
+                else if (View.AssemblerLineCollection[guess].Address > address)
+                {
+                    if (high == guess)
+                    {
+                        if (View.AssemblerLineCollection[low].Address == address)
+                        {
+                            return low;
+                        }
+                        return -1;
+                    }
+                    high = guess;
+                }
+                else
+                {
+                    return guess;
+                }
+            }
+            return -1;
+        }
+
+        private void FormatItems(ICollection<Tuple<int, int>> items)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                foreach (var item in items)
+                {
+                    var index = FindAddress(item.Item1);
+                    if (index >= 0 && index < View.AssemblerLineCollection.Count)
+                    {
+                        View.AssemblerLineCollection[index].Format = item.Item2;
+                    }
+                }
+
+                items.Clear();
+                View.SyncRowsLabels();
+            });
         }
 
         /// <summary>
@@ -203,30 +312,44 @@ namespace DisAsm6502
         private async void FormatLine_OnExecuted(object sender, ExecutedRoutedEventArgs e)
         {
             e.Command.SetIsRunning(true);
-            await Task.Run(async () =>
-            {
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    var items = new List<int>(0);
-                    items.AddRange(from AssemblerLine selectedItem in MainListBox.SelectedItems
-                                   select selectedItem.Address);
 
-                    _ = int.TryParse(e.Parameter.ToString(), out var format);
-                    foreach (var item in items)
+            await Task.Run(() =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    lock (FormatQueueLock)
                     {
-                        foreach (var line in View.AssemblerLineCollection)
+                        _ = int.TryParse(e.Parameter.ToString(), out var format);
+
+                        var items = (from object selectedItem in MainListBox.SelectedItems
+                            select selectedItem as AssemblerLine).OrderBy(selectedItem => selectedItem.RowIndex).ToList();
+
+                        for (var index = 0; index < items.Count; ++index)
                         {
-                            if (line.Address != item)
+                            var item = items[index];
+                            FormatQueue.Enqueue(new Tuple<int, int>(item.Address, format));
+
+                            // The following code is needed because
+                            // when a line is reformatted, it is possible for
+                            // the formatting to insert a new line that is formatted as a byte
+                            // which could create a byte island. This checks to see if
+                            // the next line is intended to be formatted the same.
+                            // If it is then we will format the byte island the way it
+                            // was intended.
+                            if (item.Size <= 1 || index + 1 >= items.Count ||
+                                item.RowIndex != items[index + 1].RowIndex - 1)
                             {
                                 continue;
                             }
 
-                            line.Format = format;
-                            break;
+                            for (var sz = 1; sz < item.Size; ++sz)
+                            {
+                                FormatQueue.Enqueue(new Tuple<int, int>(item.Address + sz, format));
+                            }
+
                         }
                     }
 
-                    // View.RebuildAssemblerLines();
                     e.Command.SetIsRunning(false);
                 });
             });
@@ -247,15 +370,157 @@ namespace DisAsm6502
                 return;
             }
 
-            var formatLine = ((FrameworkElement)sender).FindResource("FormatLine") as ICommand;
-            if (formatLine.IsRunning() || ApplicationCommands.Open.IsRunning() ||
-                ApplicationCommands.Save.IsRunning())
+            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
+                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
             {
                 e.CanExecute = false;
                 return;
             }
 
             e.CanExecute = true;
+        }
+
+        private async void SetLoadAddress_OnExecuted(object sender, ExecutedRoutedEventArgs e)
+        {
+            e.Command.SetIsRunning(true);
+            await Task.Run(async () =>
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var dlg = new LoadAddress() { Owner = this, MaxLoadAddress = 0xFFFF - View.Data.Length };
+                    var result = dlg.ShowDialog();
+                    if (result.HasValue && result.Value)
+                    {
+                        var text = dlg.LoadAddressTextBox.Text.Trim();
+                        if (text.Length > 0)
+                        {
+                            try
+                            {
+                                int address;
+                                if (text.Length > 1 && text.StartsWith("$"))
+                                {
+                                   address = int.Parse(text.Remove(0,1), System.Globalization.NumberStyles.HexNumber);
+                                }
+                                else if (text.Length > 2 && text.StartsWith("0x"))
+                                {
+                                    address = int.Parse(text.Remove(0, 2), System.Globalization.NumberStyles.HexNumber);
+                                }
+                                else
+                                {
+                                    address = int.Parse(text);
+                                }
+                                View.LoadAddress = address;
+                            }
+                            // ReSharper disable once EmptyGeneralCatchClause
+                            catch (Exception)
+                            {
+                            }
+                        }
+                    }
+                    dlg.Close();
+
+                    e.Command.SetIsRunning(false);
+                });
+            });
+        }
+
+        private void SetLoadAddress_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
+        {
+            if (View?.Data == null || View.Data.Length < 1 || !View.BinFile)
+            {
+                e.CanExecute = false;
+                return;
+            }
+
+            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
+                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
+            {
+                e.CanExecute = false;
+                return;
+            }
+
+            e.CanExecute = true;
+        }
+
+        private async void GotoLine_OnExecuted(object sender, ExecutedRoutedEventArgs e)
+        {
+            e.Command.SetIsRunning(true);
+            await Task.Run(async () =>
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var parsed = false;
+                    var line = 0;
+                    var dlg = new GotoLine {Owner = this, MaxLine = MainListBox.Items.Count - 1};
+                    var result = dlg.ShowDialog();
+                    if (result.HasValue && result.Value)
+                    {
+                        parsed = int.TryParse(dlg.LineTextBox.Text, out line);
+                    }
+                    dlg.Close();
+                    MainListBox.Focus();
+
+                    if (parsed && line > 0 && line < MainListBox.Items.Count)
+                    {
+                        MainListBox.SelectedIndex = line - 1;
+                        MainListBox.ScrollIntoView(MainListBox.SelectedItems[0]);
+                    }
+                    e.Command.SetIsRunning(false);
+                });
+            });
+        }
+
+        private void GotoLine_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
+        {
+            if (View?.Data == null || View.Data.Length < 1)
+            {
+                e.CanExecute = false;
+                return;
+            }
+
+            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
+                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
+            {
+                e.CanExecute = false;
+                return;
+            }
+
+            e.CanExecute = true;
+        }
+
+        private int _queueState;
+
+        private static readonly object FormatQueueLock = new object();
+        /// <summary>
+        /// Process the format que
+        /// </summary>
+        private void ProcessQueue()
+        {
+            const int sliceSize = 5;
+
+            QueueState = 1;
+            do
+            {
+                lock (FormatQueue)
+                {
+                    var count = FormatQueue.Count;
+                    if (count > 0)
+                    {
+                        var items = new List<Tuple<int, int>>();
+
+                        var cnt = count % sliceSize;
+                        var sz = cnt > 0 ? cnt : count;
+                        for (var i = 0; i < sz; ++i)
+                        {
+                            items.Add(FormatQueue.Dequeue());
+                        }
+
+                        FormatItems(items);
+                        Thread.Sleep(5);
+                    }
+                }
+                Thread.Sleep(10);
+            } while (QueueState != 0);
         }
 
         /// <summary>
@@ -267,10 +532,14 @@ namespace DisAsm6502
         /// Called when a property value changes
         /// </summary>
         /// <param name="propertyName"></param>
-        [NotifyPropertyChangedInvocator]
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private void MainWindow_OnClosing(object sender, CancelEventArgs e)
+        {
+            _queueState = 0;
         }
     }
 }

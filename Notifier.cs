@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using DisAsm6502.Annotations;
 
 namespace DisAsm6502
 {
@@ -15,7 +14,6 @@ namespace DisAsm6502
         /// Fires property changed event
         /// </summary>
         /// <param name="propertyName">not used. defaults to name of caller</param>
-        [NotifyPropertyChangedInvocator]
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

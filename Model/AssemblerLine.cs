@@ -1,10 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 // ReSharper disable UnusedMember.Global
 
 namespace DisAsm6502.Model
 {
-    public class AssemblerLine : Notifier
+    public class AssemblerLine : Notifier, IComparable
     {
         // ReSharper disable once UnusedMember.Global
         public List<string> FormatOptions { get; } = new List<string> { "OpCode", "Byte", "Word" };
@@ -14,18 +15,6 @@ namespace DisAsm6502.Model
             Opcode,
             Byte,
             Word
-        }
-
-        private bool _constructing;
-
-        public bool Constructing
-        {
-            get => _constructing;
-            set
-            {
-                _constructing = value;
-                OnPropertyChanged();
-            }
         }
 
         private int _rowIndex;
@@ -127,18 +116,30 @@ namespace DisAsm6502.Model
 
         public AssemblerLine(int address, string bytes, string opcodes, FormatType format, int sz)
         {
-            Constructing = true;
             Address = address;
             Bytes = bytes;
             OpCodes = opcodes;
             Format = (int)format;
-            Constructing = false;
             Size = sz;
         }
 
         public override string ToString()
         {
             return $"{Label,-10} {OpCodes,-20} {Comment}";
+        }
+
+        public int CompareTo(object obj)
+        {
+            if (obj is AssemblerLine b)
+            {
+                return RowIndex.CompareTo(b.RowIndex);
+            }
+            if (obj is int c)
+            {
+                return RowIndex.CompareTo(c);
+            }
+
+            return 0;
         }
     }
 }

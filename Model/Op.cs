@@ -1,5 +1,9 @@
-﻿namespace DisAsm6502.Model
+﻿using System;
+using System.Collections.ObjectModel;
+
+namespace DisAsm6502.Model
 {
+    [Serializable]
     public enum AddressingModes
     {
         I = 0, /* implied              */
@@ -21,6 +25,11 @@
         MaxAddressingMode
     }
 
+    /// <summary>
+    /// class to hold string representation of opcode
+    /// and addressing mode
+    /// </summary>
+    [Serializable]
     public class Op
     {
         public string Opcode;
@@ -36,6 +45,25 @@
             Opcode = "";
             Mode = AddressingModes.I;
         }
+    }
+
+    [Serializable]
+    public class OpCollection
+    {
+        public Collection<Op> Ops = new Collection<Op>();
+    }
+
+    [Serializable]
+    public class Sym
+    {
+        public int Address;
+        public string Name;
+    }
+
+    [Serializable]
+    public class SymCollection
+    {
+        public Collection<Sym> Syms = new Collection<Sym>();
     }
 }
 

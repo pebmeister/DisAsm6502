@@ -1,21 +1,15 @@
 ﻿using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Xml.Serialization;
+using DisAsm6502.Model;
 
 namespace DisAsm6502
 {
     public static class Extensions
     {
-        public static void ClearRoutedCommands()
-        {
-            CommandDict.Clear();
-        }
-
-        public static void InvalidateRoutedCommands()
-        {
-            CommandManager.InvalidateRequerySuggested();
-        }
-
         /// <summary>
         /// dictionary to hold the state of running Commands
         /// </summary>
@@ -47,6 +41,31 @@ namespace DisAsm6502
             return ((w & 0xFF00) >> 8).ToHex() + (w & 0xFF).ToHex();
         }
 
+        internal static Dictionary<int, string> ToDictionary(this SymCollection symbols)
+        {
+            return symbols.Syms.ToDictionary(sym => sym.Address, sym => sym.Name);
+        }
+
+        internal static T Deserialize<T>(this T toDeserialize, string resourcePath)
+        {
+            var a = System.Reflection.Assembly.GetExecutingAssembly();
+            var x = new XmlSerializer(typeof(T));
+            var stream = a.GetManifestResourceStream(resourcePath);
+
+            // ReSharper disable once AssignNullToNotNullAttribute
+            return (T)x.Deserialize(new StreamReader(stream));
+        }
+
+        internal static string SerializeObject<T>(this T toSerialize)
+        {
+            var xmlSerializer = new XmlSerializer(toSerialize.GetType());
+            using (var textWriter = new StringWriter())
+            {
+                xmlSerializer.Serialize(textWriter, toSerialize);
+                return textWriter.ToString();
+            }
+        }
+
         /// <summary>
         /// Extension method to set the state of an ICommand
         /// 
@@ -76,6 +95,20 @@ namespace DisAsm6502
             }
 
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        /// <summary>
+        /// Number of bytes used in each addressing mode
+        /// </summary>;
+        private static readonly int[] ModeSizes =
+        {
+            1, 2, 2, 2, 2, 2, 2, 2,
+            3, 3, 3, 3, 3, 2, 2, 1
+        };
+
+        internal static int AddressingModeSize(this AddressingModes mode)
+        {
+            return ModeSizes[(int) mode];
         }
     }
 }
