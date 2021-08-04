@@ -81,6 +81,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Extensions.cs" />
+    <Compile Include="FormatQueueProcessor.cs" />
     <Compile Include="LoadAddress.xaml.cs">
       <DependentUpon>LoadAddress.xaml</DependentUpon>
     </Compile>

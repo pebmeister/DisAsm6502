@@ -37,6 +37,18 @@ namespace DisAsm6502
             PropertyChanged += PropertyChangedEventHandler;
         }
 
+        private string _defaultAddress = "$0000";
+
+        public string DefaultAddress
+        {
+            get => _defaultAddress;
+            set
+            {
+                _defaultAddress = value;
+                OnPropertyChanged();
+            }
+        }
+
         /// <summary>
         /// Set the default load address
         /// </summary>
@@ -45,7 +57,7 @@ namespace DisAsm6502
         private void LoadAddress_OnLoaded(object sender, RoutedEventArgs e)
         {
             _ = LoadAddressTextBox.Focus();
-            LoadAddressTextBox.SelectedText = "$0000";
+            LoadAddressTextBox.SelectedText = DefaultAddress;
         }
 
         /// Determine if find can be executed

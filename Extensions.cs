@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,7 +15,7 @@ namespace DisAsm6502
         /// <summary>
         /// dictionary to hold the state of running Commands
         /// </summary>
-        private static readonly Dictionary<ICommand, bool> CommandDict = new Dictionary<ICommand, bool>();
+        private static readonly Dictionary<ICommand, bool> CommandDictionary = new Dictionary<ICommand, bool>();
 
         /// <summary>
         /// Extension method for ICommand to determine if it is being executed
@@ -22,7 +24,7 @@ namespace DisAsm6502
         /// <returns>true if the command is being executed</returns>
         internal static bool IsRunning(this ICommand command)
         {
-            _ = CommandDict.TryGetValue(command, out var running);
+            _ = CommandDictionary.TryGetValue(command, out var running);
             return running;
         }
 
@@ -43,20 +45,21 @@ namespace DisAsm6502
 
         internal static Dictionary<int, string> ToDictionary(this SymCollection symbols)
         {
-            return symbols.Syms.ToDictionary(sym => sym.Address, sym => sym.Name);
+            return symbols.Symbols.ToDictionary(sym => sym.Address, sym => sym.Name);
         }
 
-        internal static T Deserialize<T>(this T toDeserialize, string resourcePath)
+        internal static T Deserialize<T>(string resourcePath)
         {
-            var a = System.Reflection.Assembly.GetExecutingAssembly();
-            var x = new XmlSerializer(typeof(T));
-            var stream = a.GetManifestResourceStream(resourcePath);
+            var executingAssembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var stream = executingAssembly.GetManifestResourceStream($"{executingAssembly.GetName().Name}.{resourcePath}");
 
+            var xmlSerializer = new XmlSerializer(typeof(T));
             // ReSharper disable once AssignNullToNotNullAttribute
-            return (T)x.Deserialize(new StreamReader(stream));
+            return (T)xmlSerializer.Deserialize(new StreamReader(stream));
         }
 
-        internal static string SerializeObject<T>(this T toSerialize)
+        // ReSharper disable once UnusedMember.Global
+        internal static string Serialize<T>(this T toSerialize)
         {
             var xmlSerializer = new XmlSerializer(toSerialize.GetType());
             using (var textWriter = new StringWriter())
@@ -64,6 +67,53 @@ namespace DisAsm6502
                 xmlSerializer.Serialize(textWriter, toSerialize);
                 return textWriter.ToString();
             }
+        }
+
+        internal static void FormatItems(this ObservableCollection<AssemblerLine> collection,
+            ICollection<Tuple<int, int>> items)
+        {
+            foreach (var (address, format) in items)
+            {
+                var index = collection.FindAddress(address);
+                if (index >= 0 && index < collection.Count)
+                {
+                    collection[index].Format = format;
+                }
+            }
+            items.Clear();
+        }
+
+        internal static int FindAddress(this ObservableCollection<AssemblerLine> collection, int address)
+        {
+            var low = 0;
+            var max = collection.Count - 1;
+            var high = max;
+
+            while (low <= high)
+            {
+                var guess = low + ((high - low) / 2);
+                if (collection[guess].Address < address)
+                {
+                    if (low == guess)
+                    {
+                        return collection[high].Address == address ? high : -1;
+                    }
+                    low = guess;
+                }
+                else if (collection[guess].Address > address)
+                {
+                    if (high == guess)
+                    {
+                        return collection[low].Address == address ? low : -1;
+                    }
+                    high = guess;
+                }
+                else
+                {
+                    return guess;
+                }
+            }
+            return -1;
         }
 
         /// <summary>
@@ -79,19 +129,19 @@ namespace DisAsm6502
         internal static void SetIsRunning(this ICommand command, bool value, object param = null,
             [CallerMemberName] string name = null)
         {
-            if (CommandDict.ContainsKey(command))
+            if (CommandDictionary.ContainsKey(command))
             {
-                _ = CommandDict.TryGetValue(command, out var running);
+                _ = CommandDictionary.TryGetValue(command, out var running);
 
                 if (value != running)
                 {
-                    _ = CommandDict.Remove(command);
-                    CommandDict.Add(command, value);
+                    _ = CommandDictionary.Remove(command);
+                    CommandDictionary.Add(command, value);
                 }
             }
             else
             {
-                CommandDict.Add(command, value);
+                CommandDictionary.Add(command, value);
             }
 
             CommandManager.InvalidateRequerySuggested();

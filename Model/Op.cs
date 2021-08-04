@@ -63,7 +63,7 @@ namespace DisAsm6502.Model
     [Serializable]
     public class SymCollection
     {
-        public Collection<Sym> Syms = new Collection<Sym>();
+        public Collection<Sym> Symbols = new Collection<Sym>();
     }
 }
 

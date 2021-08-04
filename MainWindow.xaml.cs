@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using DisAsm6502.Model;
@@ -23,25 +21,14 @@ namespace DisAsm6502
         public MainWindow()
         {
             InitializeComponent();
-            View = new ViewModel.ViewModel{Owner = this};
             DataContext = View;
-
-            FormatQueue = new Queue<Tuple<int, int>>();
-            Task.Run(ProcessQueue);
+            FormatQueueProcessor.Start();
         }
 
-        private Queue<Tuple<int, int>> _formatQueue;
+        private FormatQueueProcessor _formatQueueProcessor;
 
-        public Queue<Tuple<int, int>> FormatQueue
-        {
-            get => _formatQueue;
-            set
-            {
-                _formatQueue = value;
-                OnPropertyChanged();
-            }
-        }
-
+        public FormatQueueProcessor FormatQueueProcessor => _formatQueueProcessor ??
+                                                            (_formatQueueProcessor = new FormatQueueProcessor {Owner = this});
 
         private ICommand _gotoLine;
 
@@ -55,20 +42,8 @@ namespace DisAsm6502
 
         public ICommand SetLoadAddress => _setLoadAddress ?? (_setLoadAddress = FindResource("SetLoadAddress") as ICommand);
 
-        /// <summary>
-        /// ViewModel
-        /// </summary>
         private ViewModel.ViewModel _view;
-
-        public ViewModel.ViewModel View
-        {
-            get => _view;
-            set
-            {
-                _view = value;
-                OnPropertyChanged();
-            }
-        }
+        public ViewModel.ViewModel View => _view ?? (_view = new ViewModel.ViewModel {Owner = this});
 
         private string _filename;
 
@@ -81,16 +56,6 @@ namespace DisAsm6502
             set
             {
                 _filename = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public int QueueState
-        {
-            get => _queueState;
-            set
-            {
-                _queueState = value;
                 OnPropertyChanged();
             }
         }
@@ -242,66 +207,6 @@ namespace DisAsm6502
             e.CanExecute = true;
         }
 
-        private int FindAddress(int address)
-        {
-            var low = 0;
-            var max = View.AssemblerLineCollection.Count - 1;
-            var high = max;
-
-            while (low <= high)
-            {
-                var guess = low +  ((high - low)  / 2);
-
-                if (View.AssemblerLineCollection[guess].Address < address)
-                {
-                    if (low == guess)
-                    {
-                        if (View.AssemblerLineCollection[high].Address == address)
-                        {
-                            return high;
-                        }
-                        return -1;
-                    }
-                    low = guess;
-                }
-                else if (View.AssemblerLineCollection[guess].Address > address)
-                {
-                    if (high == guess)
-                    {
-                        if (View.AssemblerLineCollection[low].Address == address)
-                        {
-                            return low;
-                        }
-                        return -1;
-                    }
-                    high = guess;
-                }
-                else
-                {
-                    return guess;
-                }
-            }
-            return -1;
-        }
-
-        private void FormatItems(ICollection<Tuple<int, int>> items)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                foreach (var item in items)
-                {
-                    var index = FindAddress(item.Item1);
-                    if (index >= 0 && index < View.AssemblerLineCollection.Count)
-                    {
-                        View.AssemblerLineCollection[index].Format = item.Item2;
-                    }
-                }
-
-                items.Clear();
-                View.SyncRowsLabels();
-            });
-        }
-
         /// <summary>
         /// FormatLine_OnExecuted
         ///
@@ -317,17 +222,18 @@ namespace DisAsm6502
             {
                 Dispatcher.Invoke(() =>
                 {
-                    lock (FormatQueueLock)
+                    lock (FormatQueueProcessor.FormatQueueLock)
                     {
                         _ = int.TryParse(e.Parameter.ToString(), out var format);
 
                         var items = (from object selectedItem in MainListBox.SelectedItems
-                            select selectedItem as AssemblerLine).OrderBy(selectedItem => selectedItem.RowIndex).ToList();
+                                select selectedItem as AssemblerLine).OrderBy(selectedItem => selectedItem.RowIndex)
+                            .ToList();
 
                         for (var index = 0; index < items.Count; ++index)
                         {
                             var item = items[index];
-                            FormatQueue.Enqueue(new Tuple<int, int>(item.Address, format));
+                            FormatQueueProcessor.FormatQueue.Enqueue(new Tuple<int, int>(item.Address, format));
 
                             // The following code is needed because
                             // when a line is reformatted, it is possible for
@@ -344,9 +250,9 @@ namespace DisAsm6502
 
                             for (var sz = 1; sz < item.Size; ++sz)
                             {
-                                FormatQueue.Enqueue(new Tuple<int, int>(item.Address + sz, format));
+                                FormatQueueProcessor.FormatQueue.Enqueue(new Tuple<int, int>(item.Address + sz,
+                                    format));
                             }
-
                         }
                     }
 
@@ -380,6 +286,14 @@ namespace DisAsm6502
             e.CanExecute = true;
         }
 
+        /// <summary>
+        /// SetLoadAddress_OnExecuted
+        ///
+        /// Set the load address for .bin file
+        /// It is used to determine local labels
+        /// </summary>
+        /// <param name="sender">unused origin of command</param>
+        /// <param name="e">parameter for set load address</param>
         private async void SetLoadAddress_OnExecuted(object sender, ExecutedRoutedEventArgs e)
         {
             e.Command.SetIsRunning(true);
@@ -387,7 +301,8 @@ namespace DisAsm6502
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    var dlg = new LoadAddress() { Owner = this, MaxLoadAddress = 0xFFFF - View.Data.Length };
+                    var dlg = new LoadAddress { Owner = this, MaxLoadAddress = 0xFFFF - View.Data.Length, DefaultAddress = $"${View.LoadAddress.ToHexWord()}"};
+
                     var result = dlg.ShowDialog();
                     if (result.HasValue && result.Value)
                     {
@@ -424,14 +339,23 @@ namespace DisAsm6502
             });
         }
 
+        /// <summary>
+        /// SetLoadAddress_OnCanExecute
+        ///
+        /// Determine if set load address can execute
+        /// </summary>
+        /// <param name="sender">unused origin of command</param>
+        /// <param name="e">parameters for SetLoadAddress_OnCanExecute</param>
         private void SetLoadAddress_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
         {
+            // if there is no data or not a .bin file then wen cant execute
             if (View?.Data == null || View.Data.Length < 1 || !View.BinFile)
             {
                 e.CanExecute = false;
                 return;
             }
 
+            // make sure no other command is running
             if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
                 ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
             {
@@ -442,6 +366,13 @@ namespace DisAsm6502
             e.CanExecute = true;
         }
 
+        /// <summary>
+        /// GotoLine_OnExecuted
+        ///
+        /// Go to a line number
+        /// </summary>
+        /// <param name="sender">unused origin of command</param>
+        /// <param name="e">parameters for GotoLine_OnExecuted</param>
         private async void GotoLine_OnExecuted(object sender, ExecutedRoutedEventArgs e)
         {
             e.Command.SetIsRunning(true);
@@ -470,6 +401,13 @@ namespace DisAsm6502
             });
         }
 
+        /// <summary>
+        /// GotoLine_OnCanExecute
+        ///
+        /// Determine if Goto Line can be executed
+        /// </summary>
+        /// <param name="sender">unused origin of command</param>
+        /// <param name="e">parameters for GotoLine_OnCanExecute</param>
         private void GotoLine_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
         {
             if (View?.Data == null || View.Data.Length < 1)
@@ -488,41 +426,6 @@ namespace DisAsm6502
             e.CanExecute = true;
         }
 
-        private int _queueState;
-
-        private static readonly object FormatQueueLock = new object();
-        /// <summary>
-        /// Process the format que
-        /// </summary>
-        private void ProcessQueue()
-        {
-            const int sliceSize = 5;
-
-            QueueState = 1;
-            do
-            {
-                lock (FormatQueue)
-                {
-                    var count = FormatQueue.Count;
-                    if (count > 0)
-                    {
-                        var items = new List<Tuple<int, int>>();
-
-                        var cnt = count % sliceSize;
-                        var sz = cnt > 0 ? cnt : count;
-                        for (var i = 0; i < sz; ++i)
-                        {
-                            items.Add(FormatQueue.Dequeue());
-                        }
-
-                        FormatItems(items);
-                        Thread.Sleep(5);
-                    }
-                }
-                Thread.Sleep(10);
-            } while (QueueState != 0);
-        }
-
         /// <summary>
         /// Event when a property changed value
         /// </summary>
@@ -537,9 +440,14 @@ namespace DisAsm6502
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
+        /// <summary>
+        /// Main window is closing
+        /// </summary>
+        /// <param name="sender">unused origin of command</param>
+        /// <param name="e">parameters for closing window</param>
         private void MainWindow_OnClosing(object sender, CancelEventArgs e)
         {
-            _queueState = 0;
+            FormatQueueProcessor.Stop();
         }
     }
 }

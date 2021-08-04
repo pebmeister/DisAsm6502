@@ -1,11 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 // ReSharper disable UnusedMember.Global
 
 namespace DisAsm6502.Model
 {
-    public class AssemblerLine : Notifier, IComparable
+    public class AssemblerLine : Notifier
     {
         // ReSharper disable once UnusedMember.Global
         public List<string> FormatOptions { get; } = new List<string> { "OpCode", "Byte", "Word" };
@@ -126,20 +125,6 @@ namespace DisAsm6502.Model
         public override string ToString()
         {
             return $"{Label,-10} {OpCodes,-20} {Comment}";
-        }
-
-        public int CompareTo(object obj)
-        {
-            if (obj is AssemblerLine b)
-            {
-                return RowIndex.CompareTo(b.RowIndex);
-            }
-            if (obj is int c)
-            {
-                return RowIndex.CompareTo(c);
-            }
-
-            return 0;
         }
     }
 }

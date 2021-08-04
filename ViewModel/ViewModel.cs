@@ -7,6 +7,7 @@ using System.Linq;
 using System.Windows;
 using DisAsm6502.Model;
 using Microsoft.SqlServer.Server;
+using static DisAsm6502.Extensions;
 
 // ReSharper disable StringLiteralTypo
 // ReSharper disable CommentTypo
@@ -108,6 +109,8 @@ namespace DisAsm6502.ViewModel
             get => _loadAddress;
             set
             {
+                if (value < 0 || value > 0xFFFF) return;
+
                 _loadAddress = value;
                 OnPropertyChanged();
             }
@@ -775,11 +778,10 @@ namespace DisAsm6502.ViewModel
             FormatLine(line, (AssemblerLine.FormatType) line.Format);
         }
 
-
         /// <summary>
         /// Dictionary to hold well known address and symbols
         /// </summary>
-        private Dictionary<int, string> _builtInSymbols = new SymCollection().Deserialize("DisAsm6502.Symbols.xml").ToDictionary();
+        private Dictionary<int, string> _builtInSymbols = Deserialize<SymCollection>("Symbols.xml").ToDictionary();
 
         public Dictionary<int, string> BuiltInSymbols
         {
@@ -794,7 +796,8 @@ namespace DisAsm6502.ViewModel
         /// <summary>
         /// Array holding Opcodes, addressing mode and string name
         /// </summary>
-        private OpCollection _ops = new OpCollection().Deserialize("DisAsm6502.Ops.xml");
+        private OpCollection _ops = Deserialize<OpCollection>("Ops.xml");
+
         public OpCollection Ops
         {
             get => _ops;
@@ -813,6 +816,7 @@ namespace DisAsm6502.ViewModel
         {
             var lastLine = -1;
             var address = LoadAddress;
+
             foreach (var assemblerLine in AssemblerLineCollection)
             {
                 if (assemblerLine.RowIndex != lastLine + 1)
