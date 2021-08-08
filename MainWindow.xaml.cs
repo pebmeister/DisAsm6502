@@ -60,6 +60,13 @@ namespace DisAsm6502
             }
         }
 
+        private bool AnyCommandIsRunning()
+        {
+            return (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
+                    ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning() ||
+                    ApplicationCommands.SaveAs.IsRunning());
+        }
+
         /// <summary>
         /// Save_OnExecuted
         /// 
@@ -67,7 +74,7 @@ namespace DisAsm6502
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private async void Save_OnExecuted(object sender, ExecutedRoutedEventArgs e)
+        private async void SaveAs_OnExecuted(object sender, ExecutedRoutedEventArgs e)
         {
             e.Command.SetIsRunning(true);
             await Task.Run(async () =>
@@ -124,6 +131,53 @@ namespace DisAsm6502
         /// </summary>
         /// <param name="sender">Save button</param>
         /// <param name="e">execution event arguments</param>
+        private void SaveAs_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
+        {
+            if (View?.Data == null || View.Data.Length < 1)
+            {
+                e.CanExecute = false;
+                return;
+            }
+
+            if (AnyCommandIsRunning())
+            {
+                e.CanExecute = false;
+                return;
+            }
+
+            e.CanExecute = true;
+        }
+
+        private async void Save_OnExecuted(object sender, ExecutedRoutedEventArgs e)
+        {
+            e.Command.SetIsRunning(true);
+            await Task.Run(async () =>
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var fi = new FileInfo(FileName);
+                    var saveFileDlg = new SaveFileDialog
+                    {
+                        FileName = $"{fi.Name.Replace(fi.Extension, "")}",
+                        DefaultExt = ".dis",
+                        Filter = "DisAsm6502 file |*.dis"
+                    };
+
+                    var result = saveFileDlg.ShowDialog(this);
+                    if (!result.Value)
+                    {
+                        e.Command.SetIsRunning(false);
+                        return;
+                    }
+
+                    var str = new SaveData(this).Save();
+                    File.WriteAllText(saveFileDlg.FileName, str);
+
+                    e.Command.SetIsRunning(false);
+                });
+            });
+        }
+
         private void Save_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
         {
             if (View?.Data == null || View.Data.Length < 1)
@@ -132,8 +186,7 @@ namespace DisAsm6502
                 return;
             }
 
-            if (FormatLine.IsRunning() || ApplicationCommands.Open.IsRunning() ||
-                ApplicationCommands.Save.IsRunning())
+            if (AnyCommandIsRunning())
             {
                 e.CanExecute = false;
                 return;
@@ -145,7 +198,7 @@ namespace DisAsm6502
         /// <summary>
         /// Open_OnExecuted
         ///
-        /// Open .prg or .bin file and load it
+        /// Open .prg or .bin or .dis file and load it
         /// </summary>
         /// <param name="sender">Open button</param>
         /// <param name="e">execution event arguments</param>
@@ -158,7 +211,7 @@ namespace DisAsm6502
                 {
                     var openFileDlg = new OpenFileDialog
                     {
-                        Filter = "Commodore Files|*.prg;*.bin;|Program Files (.prg)|*.prg|Bin Files (.bin)|*.bin|All files (*.*)|*.*"
+                        Filter = "Commodore Files|*.prg;*.bin;*.dis;|Program Files (.prg)|*.prg|Bin Files (.bin)|*.bin|DisAsm6502 file |*.dis|All files (*.*)|*.*"
                     };
 
                     var selected = openFileDlg.ShowDialog();
@@ -172,6 +225,14 @@ namespace DisAsm6502
 
                     FileName = openFileDlg.FileName;
                     var fi = new FileInfo(FileName);
+
+                    if (string.Compare(fi.Extension, ".dis", StringComparison.CurrentCultureIgnoreCase) == 0)
+                    {
+                        new SaveData(this).Open(File.ReadAllText(FileName));
+                        e.Command.SetIsRunning(false);
+                        return;
+                    }
+
                     View.BinFile = string.Compare(fi.Extension, ".bin", StringComparison.CurrentCultureIgnoreCase) == 0;
                     // Read the contents of the file into a stream
                     var fileStream = openFileDlg.OpenFile();
@@ -197,8 +258,7 @@ namespace DisAsm6502
         /// <param name="e">can execute command args</param>
         private void Open_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
         {
-            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
-                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
+            if (AnyCommandIsRunning())
             {
                 e.CanExecute = false;
                 return;
@@ -225,12 +285,23 @@ namespace DisAsm6502
                     lock (FormatQueueProcessor.FormatQueueLock)
                     {
                         _ = int.TryParse(e.Parameter.ToString(), out var format);
-
                         var items = (from object selectedItem in MainListBox.SelectedItems
                                 select selectedItem as AssemblerLine).OrderBy(selectedItem => selectedItem.RowIndex)
                             .ToList();
 
-                        for (var index = 0; index < items.Count; ++index)
+                        var count = items.Count;
+                        if (format == (int)AssemblerLine.FormatType.MultiByte || format == (int)AssemblerLine.FormatType.Text)
+                        {
+                            var sz = 0;
+                            for (var index = 0; index < count; ++index)
+                            {
+                                sz += items[index].Size;
+                            }
+
+                            format |= (sz << 8) & ~0xFF;
+                            count = 1;
+                        }
+                        for (var index = 0; index < count; ++index)
                         {
                             var item = items[index];
                             FormatQueueProcessor.FormatQueue.Enqueue(new Tuple<int, int>(item.Address, format));
@@ -242,7 +313,7 @@ namespace DisAsm6502
                             // the next line is intended to be formatted the same.
                             // If it is then we will format the byte island the way it
                             // was intended.
-                            if (item.Size <= 1 || index + 1 >= items.Count ||
+                            if (item.Size <= 1 || index + 1 >= count ||
                                 item.RowIndex != items[index + 1].RowIndex - 1)
                             {
                                 continue;
@@ -276,8 +347,7 @@ namespace DisAsm6502
                 return;
             }
 
-            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
-                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
+            if (AnyCommandIsRunning())
             {
                 e.CanExecute = false;
                 return;
@@ -348,7 +418,7 @@ namespace DisAsm6502
         /// <param name="e">parameters for SetLoadAddress_OnCanExecute</param>
         private void SetLoadAddress_OnCanExecute(object sender, CanExecuteRoutedEventArgs e)
         {
-            // if there is no data or not a .bin file then wen cant execute
+            // if there is no data or not a .bin file then we cant execute
             if (View?.Data == null || View.Data.Length < 1 || !View.BinFile)
             {
                 e.CanExecute = false;
@@ -356,8 +426,7 @@ namespace DisAsm6502
             }
 
             // make sure no other command is running
-            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
-                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
+            if (AnyCommandIsRunning())
             {
                 e.CanExecute = false;
                 return;
@@ -416,8 +485,7 @@ namespace DisAsm6502
                 return;
             }
 
-            if (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
-                ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning())
+            if (AnyCommandIsRunning())
             {
                 e.CanExecute = false;
                 return;

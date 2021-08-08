@@ -1,19 +1,20 @@
-﻿using System.Collections.Generic;
+﻿using System;
 
 // ReSharper disable UnusedMember.Global
 
 namespace DisAsm6502.Model
 {
+    [Serializable]
     public class AssemblerLine : Notifier
     {
-        // ReSharper disable once UnusedMember.Global
-        public List<string> FormatOptions { get; } = new List<string> { "OpCode", "Byte", "Word" };
-
+        [Flags]
         public enum FormatType
         {
             Opcode,
             Byte,
-            Word
+            Word,
+            MultiByte,
+            Text
         }
 
         private int _rowIndex;
@@ -35,6 +36,18 @@ namespace DisAsm6502.Model
             set
             {
                 _format = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private int _multiByteLen;
+
+        public int MultiByteLength
+        {
+            get => _multiByteLen;
+            set
+            {
+                _multiByteLen = value;
                 OnPropertyChanged();
             }
         }
@@ -111,6 +124,10 @@ namespace DisAsm6502.Model
                 _comment = value.Trim();
                 OnPropertyChanged();
             }
+        }
+
+        public AssemblerLine()
+        {
         }
 
         public AssemblerLine(int address, string bytes, string opcodes, FormatType format, int sz)

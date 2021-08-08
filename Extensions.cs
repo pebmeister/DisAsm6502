@@ -48,7 +48,26 @@ namespace DisAsm6502
             return symbols.Symbols.ToDictionary(sym => sym.Address, sym => sym.Name);
         }
 
-        internal static T Deserialize<T>(string resourcePath)
+
+        public static T XmlDeserializeFromString<T>(this string objectData)
+        {
+            return (T)XmlDeserializeFromString(objectData, typeof(T));
+        }
+
+        public static object XmlDeserializeFromString(this string objectData, Type type)
+        {
+            var serializer = new XmlSerializer(type);
+            object result;
+
+            using (TextReader reader = new StringReader(objectData))
+            {
+                result = serializer.Deserialize(reader);
+            }
+
+            return result;
+        }
+
+        internal static T XmlDeserializeFromResource<T>(string resourcePath)
         {
             var executingAssembly = System.Reflection.Assembly.GetExecutingAssembly();
             var stream = executingAssembly.GetManifestResourceStream($"{executingAssembly.GetName().Name}.{resourcePath}");
@@ -59,7 +78,7 @@ namespace DisAsm6502
         }
 
         // ReSharper disable once UnusedMember.Global
-        internal static string Serialize<T>(this T toSerialize)
+        internal static string XmlSerialize<T>(this T toSerialize)
         {
             var xmlSerializer = new XmlSerializer(toSerialize.GetType());
             using (var textWriter = new StringWriter())

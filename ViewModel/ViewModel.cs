@@ -439,6 +439,8 @@ namespace DisAsm6502.ViewModel
         /// <returns>AssemblerLine of the data</returns>
         public AssemblerLine BuildOpCode(int offset, AssemblerLine.FormatType wantType)
         {
+            var formatByteLen = ((int)wantType & ~0xFF) >> 8;
+            wantType &= (AssemblerLine.FormatType) 0xFF;
             var address = LoadAddress + offset - (BinFile ? 0 : 2);
             int sz;
             string opCode;
@@ -464,6 +466,91 @@ namespace DisAsm6502.ViewModel
                 }
 
                 sz = 1;
+            }
+            else if (wantType == AssemblerLine.FormatType.MultiByte)
+            {
+                formatByteLen = Math.Min(formatByteLen, Data.Length - offset);
+                var bytesOp = ".BYTE ";
+                var bytesBytes = "";
+
+                sz = formatByteLen;
+
+                for (var len = 0; len < sz; ++len)
+                {
+                    bytesBytes += $"${Data[offset + len].ToHex()} ";
+                    bytesOp += $"${Data[offset + len].ToHex()},";
+                }
+
+                bytesOp = bytesOp.Substring(0, bytesOp.Length - 1);
+
+                var bytesDataLine = new AssemblerLine(address, bytesBytes, bytesOp,
+                    (AssemblerLine.FormatType)((int)wantType | formatByteLen << 8), sz);
+                bytesDataLine.PropertyChanged += LineOnPropertyChanged;
+                return bytesDataLine;
+            }
+            else if (wantType == AssemblerLine.FormatType.Text)
+            {
+                formatByteLen = Math.Min(formatByteLen, Data.Length - offset);
+                var bytesOp = ".TEXT ";
+                var bytesBytes = "";
+
+                sz = formatByteLen;
+
+                // last
+                // 0 = not initialized
+                // 1 = text
+                // 2 = byte
+                var last = 0;
+                for (var len = 0; len < sz; ++len)
+                {
+                    var b = (char) Data[offset + len];
+                    if (char.IsLetterOrDigit(b) || char.IsPunctuation(b) || b == 0x20)
+                    {
+                        switch (last)
+                        {
+                            case 0:
+                                bytesOp += $"\"{b}";
+                                break;
+                            case 1:
+                                bytesOp += b;
+                                break;
+                            default:
+                                bytesOp += $",\"{b}";
+                                break;
+                        }
+
+                        last = 1;
+                    }
+                    else
+                    {
+                        var bStr = $"${Data[offset + len].ToHex()}";
+                        switch (last)
+                        {
+                            case 0:
+                                bytesOp += bStr;
+                                break;
+                            case 1:
+                                bytesOp += $"\",{bStr}";
+                                break;
+                            default:
+                                bytesOp += $",{bStr}";
+                                break;
+                        }
+
+                        last = 2;
+                    }
+                    bytesBytes += $"${Data[offset + len].ToHex()} ";
+                }
+
+                if (last == 1)
+                {
+                    bytesOp += "\"";
+                }
+
+                var bytesDataLine = new AssemblerLine(address, bytesBytes, bytesOp,
+                    (AssemblerLine.FormatType)((int)wantType | formatByteLen << 8), sz);
+                bytesDataLine.PropertyChanged += LineOnPropertyChanged;
+                return bytesDataLine;
             }
             else
             {
@@ -667,27 +754,31 @@ namespace DisAsm6502.ViewModel
             var oldSize = line.Size;
             var newOffset = line.Address - LoadAddress + (BinFile ? 0 : 2);
             var newLine = BuildOpCode(newOffset, format);
-            if (newLine == null) return;
+            if (newLine == null)
+            {
+                return;
+            }
 
             newLine.RowIndex = line.RowIndex;
             AssemblerLineCollection.RemoveAt(line.RowIndex);
             AssemblerLineCollection.Insert(newLine.RowIndex, newLine);
 
-            var bytesToInsert = 0;
             var index = newLine.RowIndex;
+            var bytesToInsert = oldSize - newLine.Size;
             if (oldSize > newLine.Size)
             {
-                bytesToInsert = oldSize - newLine.Size;
                 newOffset += newLine.Size;
             }
             else if (newLine.Size > oldSize)
             {
-                var delIndex = newLine.RowIndex + 1;
-                var n = AssemblerLineCollection[delIndex].Size;
-                AssemblerLineCollection.RemoveAt(delIndex);
+                do
+                {
+                    var delIndex = newLine.RowIndex + 1;
+                    var n = AssemblerLineCollection[delIndex].Size;
+                    AssemblerLineCollection.RemoveAt(delIndex);
+                    bytesToInsert += n;
+                } while (bytesToInsert < 0);
 
-                var w = newLine.Size - oldSize;
-                bytesToInsert = n - w;
                 newOffset += newLine.Size;
             }
 
@@ -781,7 +872,7 @@ namespace DisAsm6502.ViewModel
         /// <summary>
         /// Dictionary to hold well known address and symbols
         /// </summary>
-        private Dictionary<int, string> _builtInSymbols = Deserialize<SymCollection>("Symbols.xml").ToDictionary();
+        private Dictionary<int, string> _builtInSymbols = XmlDeserializeFromResource<SymCollection>("Symbols.xml").ToDictionary();
 
         public Dictionary<int, string> BuiltInSymbols
         {
@@ -796,7 +887,7 @@ namespace DisAsm6502.ViewModel
         /// <summary>
         /// Array holding Opcodes, addressing mode and string name
         /// </summary>
-        private OpCollection _ops = Deserialize<OpCollection>("Ops.xml");
+        private OpCollection _ops = XmlDeserializeFromResource<OpCollection>("Ops.xml");
 
         public OpCollection Ops
         {

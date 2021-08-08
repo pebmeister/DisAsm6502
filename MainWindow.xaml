@@ -8,7 +8,6 @@
         Title="DisAsm6502" 
         Height="1000" Width="500"
         MinWidth="550"
-        MaxWidth="550"
         MinHeight="300"
         Closing="MainWindow_OnClosing"
         WindowStartupLocation="CenterScreen"
@@ -23,11 +22,12 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="90" />
                     <ColumnDefinition Width="210" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Red" Text="{Binding Label}"/>
-                <TextBlock Grid.Column="1" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Blue" Text="{Binding OpCodes}" />
-                <TextBlock Grid.Column="2" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Green" Text="{Binding Comment}" />
+                <TextBlock Grid.Column="1" Grid.ColumnSpan="2" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Blue" Text="{Binding OpCodes}" />
+                <TextBlock Grid.Column="3" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Green" Text="{Binding Comment}" />
             </Grid>
         </DataTemplate>
     </Window.Resources>
@@ -35,6 +35,7 @@
     <Window.CommandBindings>
         <CommandBinding Command="ApplicationCommands.Open" Executed="Open_OnExecuted" CanExecute="Open_OnCanExecute" />
         <CommandBinding Command="ApplicationCommands.Save" Executed="Save_OnExecuted" CanExecute="Save_OnCanExecute" />
+        <CommandBinding Command="ApplicationCommands.SaveAs" Executed="SaveAs_OnExecuted" CanExecute="SaveAs_OnCanExecute" />
         <CommandBinding Command="{StaticResource FormatLine}" Executed="FormatLine_OnExecuted" CanExecute="FormatLine_OnCanExecute"/>
         <CommandBinding Command="{StaticResource GotoLine}" Executed="GotoLine_OnExecuted" CanExecute="GotoLine_OnCanExecute"/>
         <CommandBinding Command="{StaticResource SetLoadAddress}" Executed="SetLoadAddress_OnExecuted" CanExecute="SetLoadAddress_OnCanExecute"/>
@@ -45,6 +46,8 @@
         <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="0" Key="O" Modifiers="Shift" />
         <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="1" Key="B" Modifiers="Shift" />
         <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="2" Key="W" Modifiers="Shift" />
+        <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="3" Key="M" Modifiers="Shift" />
+        <KeyBinding Command="{StaticResource FormatLine}" CommandParameter="4" Key="T" Modifiers="Shift" />
         <KeyBinding Command="{StaticResource SetLoadAddress}" Key="L" Modifiers="Shift" />
     </Window.InputBindings>
 
@@ -57,7 +60,10 @@
         <ToolBar Grid.Row="0">
             <ToolBarPanel Orientation="Horizontal" Background="LightGray">
                 <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="ApplicationCommands.Open" Cursor="Hand">Open</Button>
-                <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="ApplicationCommands.Save" Cursor="Hand">Export Source</Button>
+                <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="ApplicationCommands.Save" Cursor="Hand">Save</Button>
+            </ToolBarPanel>
+            <ToolBarPanel Orientation="Horizontal" Background="LightGray" Margin="5,0,0,0">
+                <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="ApplicationCommands.SaveAs" Cursor="Hand">Export Source</Button>
             </ToolBarPanel>
             <ToolBarPanel Orientation="Horizontal" Background="LightGray" Margin="5,0,0,0">
                 <Button Height="Auto" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10" Padding="10,2" Command="{StaticResource SetLoadAddress}" Cursor="Hand">Set Load Address</Button>
@@ -70,6 +76,8 @@
                     <MenuItem Header="OpCode" InputGestureText="Shift + O" Command="{StaticResource FormatLine}" CommandParameter="0"/>
                     <MenuItem Header="Byte" InputGestureText="Shift + B" Command="{StaticResource FormatLine}" CommandParameter="1" />
                     <MenuItem Header="Word" InputGestureText="Shift + H" Command="{StaticResource FormatLine}" CommandParameter="2" />
+                    <MenuItem Header="MultiByte" InputGestureText="Shift + M" Command="{StaticResource FormatLine}" CommandParameter="3" />
+                    <MenuItem Header="Text" InputGestureText="Shift + T" Command="{StaticResource FormatLine}" CommandParameter="4" />
                 </ContextMenu>
             </ListBox.ContextMenu>
         </ListBox>
