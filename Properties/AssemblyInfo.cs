@@ -10,9 +10,9 @@ using System.Windows;
 [assembly: AssemblyTitle("DisAsm6502")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Hewlett-Packard")]
+[assembly: AssemblyCompany("Paul Baxter")]
 [assembly: AssemblyProduct("DisAsm6502")]
-[assembly: AssemblyCopyright("Copyright © Hewlett-Packard 2021")]
+[assembly: AssemblyCopyright("Copyright © Paul Bxter 2021")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -51,5 +51,5 @@ using System.Windows;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
