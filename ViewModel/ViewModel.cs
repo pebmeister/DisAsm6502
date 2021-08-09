@@ -168,12 +168,6 @@ namespace DisAsm6502.ViewModel
             var index = 0;
             foreach (var assemblerLine in AssemblerLineCollection)
             {
-                if (BinFile && index == 0)
-                {
-                    index++;
-                    continue;
-                }
-
                 LocalSymbols.Add(assemblerLine.Address, $"L_{index++:D4}");
             }
         }
@@ -186,7 +180,7 @@ namespace DisAsm6502.ViewModel
         /// <returns>symbol</returns>
         private string GetSymCommon(int symAddress, int len)
         {
-            const int localSymRange = 5;
+            const int localSymRange = 128;
             const int externSymRange = 2;
 
             var sym = len == 1 ? $"${symAddress.ToHex()}" : $"${symAddress.ToHexWord()}";
