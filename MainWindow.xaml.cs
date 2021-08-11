@@ -1,10 +1,11 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Windows;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using DisAsm6502.Model;
 using Microsoft.Win32;
@@ -16,13 +17,15 @@ namespace DisAsm6502
     /// </summary>
     // ReSharper disable once RedundantExtendsListEntry
     // ReSharper disable once UnusedMember.Global
-    public partial class MainWindow : Window, INotifyPropertyChanged
+    [Serializable]
+    public partial class MainWindow : INotifyPropertyChanged
     {
         public MainWindow()
         {
             InitializeComponent();
             DataContext = View;
             FormatQueueProcessor.Start();
+            Title = $"DisAsm6502 {GetAssemblyFileVersion()}";
         }
 
         private FormatQueueProcessor _formatQueueProcessor;
@@ -62,9 +65,16 @@ namespace DisAsm6502
 
         private bool AnyCommandIsRunning()
         {
-            return (GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
+            return GotoLine.IsRunning() || FormatLine.IsRunning() || SetLoadAddress.IsRunning() ||
                     ApplicationCommands.Open.IsRunning() || ApplicationCommands.Save.IsRunning() ||
-                    ApplicationCommands.SaveAs.IsRunning());
+                    ApplicationCommands.SaveAs.IsRunning();
+        }
+
+        public static string GetAssemblyFileVersion()
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var fileVersion = FileVersionInfo.GetVersionInfo(assembly.Location);
+            return fileVersion.FileVersion;
         }
 
         /// <summary>
@@ -86,7 +96,7 @@ namespace DisAsm6502
                     {
                         FileName = $"{fi.Name.Replace(fi.Extension,"")}",
                         DefaultExt = ".asm",
-                        Filter = "Assembler files |*.asm|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+                        Filter = "Assembler files|*.asm;*.txt|Text files (*.txt)|*.txt|All files (*.*)|*.*"
                     };
 
                     var result = saveFileDlg.ShowDialog(this);
@@ -96,26 +106,36 @@ namespace DisAsm6502
                         return;
                     }
 
-                    using (TextWriter writer = File.CreateText(saveFileDlg.FileName))
+                    fi = new FileInfo(saveFileDlg.FileName);
+                    try
                     {
-                        fi = new FileInfo(saveFileDlg.FileName);
-
-                        writer.WriteLine($"; File created from {fi.Name} by DisAsm6502");
-                        writer.WriteLine();
-
-                        foreach (var s in View.SymCollection)
+                        using (TextWriter writer = File.CreateText(saveFileDlg.FileName))
                         {
-                            writer.WriteLine(s);
+                            var now = DateTime.Now;
+
+                            writer.WriteLine(
+                                $"; {fi.Name} created by DisAsm6502 {GetAssemblyFileVersion()}\n; at {now.ToShortDateString()} {now.ToShortTimeString()}");
+                            writer.WriteLine();
+
+                            foreach (var s in View.SymCollection)
+                            {
+                                writer.WriteLine(s);
+                            }
+
+                            writer.WriteLine();
+
+                            foreach (var assemblerLine in View.AssemblerLineCollection)
+                            {
+                                writer.WriteLine(assemblerLine);
+                            }
+
+                            writer.WriteLine();
                         }
-
-                        writer.WriteLine();
-
-                        foreach (var assemblerLine in View.AssemblerLineCollection)
-                        {
-                            writer.WriteLine(assemblerLine);
-                        }
-
-                        writer.WriteLine();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, $"Error saving {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                            MessageBoxButton.OK);
                     }
 
                     e.Command.SetIsRunning(false);
@@ -160,7 +180,7 @@ namespace DisAsm6502
                     {
                         FileName = $"{fi.Name.Replace(fi.Extension, "")}",
                         DefaultExt = ".dis",
-                        Filter = "DisAsm6502 file |*.dis"
+                        Filter = "DisAsm6502 file|*.dis"
                     };
 
                     var result = saveFileDlg.ShowDialog(this);
@@ -170,9 +190,16 @@ namespace DisAsm6502
                         return;
                     }
 
-                    var str = new SaveData(this).Save();
-                    File.WriteAllText(saveFileDlg.FileName, str);
-
+                    try
+                    {
+                        var str = new SaveData(this).Save();
+                        File.WriteAllText(saveFileDlg.FileName, str);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, $"Error saving {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                            MessageBoxButton.OK);
+                    }
                     e.Command.SetIsRunning(false);
                 });
             });
@@ -198,7 +225,7 @@ namespace DisAsm6502
         /// <summary>
         /// Open_OnExecuted
         ///
-        /// Open .prg or .bin or .dis file and load it
+        /// Open .prg, .bin or .dis file and load it
         /// </summary>
         /// <param name="sender">Open button</param>
         /// <param name="e">execution event arguments</param>
@@ -211,7 +238,8 @@ namespace DisAsm6502
                 {
                     var openFileDlg = new OpenFileDialog
                     {
-                        Filter = "Commodore Files|*.prg;*.bin;*.dis;|Program Files (.prg)|*.prg|Bin Files (.bin)|*.bin|DisAsm6502 file |*.dis|All files (*.*)|*.*"
+                        Filter =
+                            "Commodore Files|*.prg;*.bin;*.dis;|Program Files (.prg)|*.prg|Bin Files (.bin)|*.bin|DisAsm6502 file|*.dis|All files (*.*)|*.*"
                     };
 
                     var selected = openFileDlg.ShowDialog();
@@ -225,24 +253,38 @@ namespace DisAsm6502
 
                     FileName = openFileDlg.FileName;
                     var fi = new FileInfo(FileName);
-
                     if (string.Compare(fi.Extension, ".dis", StringComparison.CurrentCultureIgnoreCase) == 0)
                     {
-                        new SaveData(this).Open(File.ReadAllText(FileName));
+                        try
+                        {
+                            new SaveData(this).Open(File.ReadAllText(FileName));
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, $"Error loading {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                                MessageBoxButton.OK);
+                        }
+
                         e.Command.SetIsRunning(false);
                         return;
                     }
 
                     View.BinFile = string.Compare(fi.Extension, ".bin", StringComparison.CurrentCultureIgnoreCase) == 0;
                     // Read the contents of the file into a stream
-                    var fileStream = openFileDlg.OpenFile();
-                    using (var reader = new BinaryReader(fileStream))
+                    try
                     {
-                        View.Data = reader.ReadBytes((int)fileStream.Length);
+                        var fileStream = openFileDlg.OpenFile();
+                        using (var reader = new BinaryReader(fileStream))
+                        {
+                            View.Data = reader.ReadBytes((int) fileStream.Length);
+                        }
+                        MainListBox.IsEnabled = View.Data.Length > 2;
                     }
-
-                    MainListBox.IsEnabled = View.Data.Length > 2;
-
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, $"Error loading {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                            MessageBoxButton.OK);
+                    }
                     e.Command.SetIsRunning(false);
                 });
             });
@@ -371,7 +413,11 @@ namespace DisAsm6502
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    var dlg = new LoadAddress { Owner = this, MaxLoadAddress = 0xFFFF - View.Data.Length, DefaultAddress = $"${View.LoadAddress.ToHexWord()}"};
+                    var dlg = new LoadAddress
+                    {
+                        Owner = this, MaxLoadAddress = 0xFFFF - View.Data.Length,
+                        DefaultAddress = $"${View.LoadAddress.ToHexWord()}"
+                    };
 
                     var result = dlg.ShowDialog();
                     if (result.HasValue && result.Value)
@@ -384,7 +430,7 @@ namespace DisAsm6502
                                 int address;
                                 if (text.Length > 1 && text.StartsWith("$"))
                                 {
-                                   address = int.Parse(text.Remove(0,1), System.Globalization.NumberStyles.HexNumber);
+                                    address = int.Parse(text.Remove(0, 1), System.Globalization.NumberStyles.HexNumber);
                                 }
                                 else if (text.Length > 2 && text.StartsWith("0x"))
                                 {
@@ -394,14 +440,17 @@ namespace DisAsm6502
                                 {
                                     address = int.Parse(text);
                                 }
+
                                 View.LoadAddress = address;
                             }
-                            // ReSharper disable once EmptyGeneralCatchClause
-                            catch (Exception)
+                            catch (Exception ex)
                             {
+                                MessageBox.Show(this, $"Error parsing {text}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                                    MessageBoxButton.OK);
                             }
                         }
                     }
+
                     dlg.Close();
 
                     e.Command.SetIsRunning(false);

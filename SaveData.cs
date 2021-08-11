@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows;
 using DisAsm6502.Model;
 
 namespace DisAsm6502
@@ -13,12 +12,13 @@ namespace DisAsm6502
         {
         }
 
-        public SaveData(Window owner)
+        public SaveData(object owner)
         {
             _owner = owner;
         }
 
-        private Window _owner;
+        [NonSerialized]
+        private readonly object _owner;
 
         public int LoadAddress;
         public bool BinFile;
@@ -68,7 +68,6 @@ namespace DisAsm6502
             {
                 AssemblerLines.Add(assemblerLine);
             }
-
             return this.XmlSerialize();
         }
     }

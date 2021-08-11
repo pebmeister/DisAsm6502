@@ -23,6 +23,7 @@
                     <ColumnDefinition Width="90" />
                     <ColumnDefinition Width="210" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Red" Text="{Binding Label}"/>

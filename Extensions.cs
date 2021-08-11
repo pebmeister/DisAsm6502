@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 using System.Windows.Input;
 using System.Xml.Serialization;
 using DisAsm6502.Model;
@@ -48,7 +50,6 @@ namespace DisAsm6502
             return symbols.Symbols.ToDictionary(sym => sym.Address, sym => sym.Name);
         }
 
-
         public static T XmlDeserializeFromString<T>(this string objectData)
         {
             return (T)XmlDeserializeFromString(objectData, typeof(T));
@@ -75,6 +76,37 @@ namespace DisAsm6502
             var xmlSerializer = new XmlSerializer(typeof(T));
             // ReSharper disable once AssignNullToNotNullAttribute
             return (T)xmlSerializer.Deserialize(new StreamReader(stream));
+        }
+
+        // ReSharper disable once UnusedMember.Global
+        internal static string BinSerialize<T>(this T toSerialize)
+        {
+            var binSerializer = new BinaryFormatter();
+            using (var memoryStream = new MemoryStream())
+            {
+                binSerializer.Serialize(memoryStream, toSerialize);
+                return Encoding.UTF8.GetString(memoryStream.ToArray());
+            }
+        }
+
+        public static object BinDeserializeFromString(this string objectData)
+        {
+            var serializer = new BinaryFormatter();
+            object result;
+
+            using (var memoryStream = new MemoryStream())
+            {
+                memoryStream.Write(Encoding.UTF8.GetBytes(objectData), 0, objectData.Length);
+                result = serializer.Deserialize(memoryStream);
+            }
+
+            return result;
+        }
+
+        // ReSharper disable once UnusedMember.Global
+        public static T BinDeserializeFromString<T>(this string objectData)
+        {
+            return (T)BinDeserializeFromString(objectData);
         }
 
         // ReSharper disable once UnusedMember.Global
@@ -110,7 +142,7 @@ namespace DisAsm6502
 
             while (low <= high)
             {
-                var guess = low + ((high - low) / 2);
+                var guess = low + (high - low) / 2;
                 if (collection[guess].Address < address)
                 {
                     if (low == guess)

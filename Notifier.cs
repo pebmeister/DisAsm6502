@@ -1,13 +1,16 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace DisAsm6502
 {
+    [Serializable]
     public abstract class Notifier : INotifyPropertyChanged
     {
         /// <summary>
         /// Event for property change
         /// </summary>
+        [field: NonSerialized]
         public event PropertyChangedEventHandler PropertyChanged;
 
         /// <summary>

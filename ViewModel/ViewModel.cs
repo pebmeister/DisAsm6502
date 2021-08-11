@@ -19,9 +19,9 @@ namespace DisAsm6502.ViewModel
     /// </summary>
     public class ViewModel : Notifier
     {
-        private Window _owner;
+        private object _owner;
 
-        public Window Owner
+        public object Owner
         {
             get => _owner;
             set
@@ -119,7 +119,7 @@ namespace DisAsm6502.ViewModel
         private byte[] _data;
 
         /// <summary>
-        /// Bytes read from the .prg files
+        /// Bytes read from the .prg or .bin files
         /// Causes initial parse
         /// </summary>
         public byte[] Data
@@ -138,6 +138,7 @@ namespace DisAsm6502.ViewModel
         public Dictionary<int, string> UsedSymbols = new Dictionary<int, string>();
 
         /// <summary>
+        /// 
         /// Symbols used in the program
         /// </summary>
         public Dictionary<int, string> LocalSymbols = new Dictionary<int, string>();
@@ -443,13 +444,12 @@ namespace DisAsm6502.ViewModel
             {
                 var op = Ops.Ops[Data[offset]];
                 sz = op.Mode.AddressingModeSize();
-                var index = 0;
                 if (sz + offset < Data.Length)
                 {
                     bytes = "";
                     for (var len = 0; len < sz; ++len)
                     {
-                        bytes += $"${Data[offset + index++].ToHex()} ";
+                        bytes += $"${Data[offset + len].ToHex()} ";
                     }
 
                     bytes = bytes.Trim();
@@ -631,7 +631,7 @@ namespace DisAsm6502.ViewModel
                     var line = BuildOpCode(offset, wantType);
                     if (line == null)
                     {
-                        _ = MessageBox.Show("Failed to disassemble");
+                        _ = MessageBox.Show((Window)Owner, "Failed to disassemble", $"DisAsm6502 {MainWindow.GetAssemblyFileVersion()}" );
                         return;
                     }
 
