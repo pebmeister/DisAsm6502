@@ -68,7 +68,7 @@ namespace DisAsm6502.ViewModel
 
         /// <summary>
         /// Holds symbols
-        /// Backing data for top of file
+        /// Backing data for symbols
         /// </summary>
         public ObservableCollection<string> SymCollection
         {

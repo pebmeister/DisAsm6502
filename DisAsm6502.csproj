@@ -57,6 +57,9 @@
     <ErrorReport>prompt</ErrorReport>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>1615977.ico</ApplicationIcon>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -145,6 +148,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Symbols.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="1615977.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
