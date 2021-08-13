@@ -179,7 +179,6 @@ namespace DisAsm6502.ViewModel
         {
             LocalSymbols.Clear();
             UsedLocalSymbols.Clear();
-            ImmediateValues.Clear();
 
             var index = 0;
             foreach (var assemblerLine in AssemblerLineCollection)
@@ -627,7 +626,6 @@ namespace DisAsm6502.ViewModel
             LocalSymbols.Clear();
             UsedSymbols.Clear();
             UsedLocalSymbols.Clear();
-            ImmediateValues.Clear();
 
             lock (AssemblerLineCollectionLock)
             {
