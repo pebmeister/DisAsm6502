@@ -365,25 +365,7 @@ namespace DisAsm6502.ViewModel
                         ? (-1 & ~0xFF) | Data[offset + 1]
                         : Data[offset + 1];
                     target = LoadAddress + offset + d + (BinFile ? 2 : 0);
-                    if (BinFile)
-                    {
-                        sym = $"${target.ToHexWord()}";
-                        if (LocalSymbols.ContainsKey(target))
-                        {
-                            if (LocalSymbols.TryGetValue(target, out sym))
-                            {
-                                if (!UsedLocalSymbols.ContainsKey(target))
-                                {
-                                    UsedLocalSymbols.Add(target, sym);
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        sym = GetWordSym(target);
-                    }
-
+                    sym = GetWordSym(target);
                     str += sym;
                     break;
 
@@ -392,25 +374,7 @@ namespace DisAsm6502.ViewModel
                         ? (-1 & ~0xFF) | Data[offset + 1]
                         : Data[offset + 1];
                     target = LoadAddress + offset + d + (BinFile ? 2 : 0);
-                    if (LoadAddress == 0)
-                    {
-                        sym = $"${target.ToHexWord()}";
-                        if (LocalSymbols.ContainsKey(target))
-                        {
-                            if (LocalSymbols.TryGetValue(target, out sym))
-                            {
-                                if (!UsedLocalSymbols.ContainsKey(target))
-                                {
-                                    UsedLocalSymbols.Add(target, sym);
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        sym = GetWordSym(target);
-                    }
-
+                    sym = GetWordSym(target);
                     str += sym;
                     break;
 
@@ -458,14 +422,13 @@ namespace DisAsm6502.ViewModel
             {
                 var op = Ops.Ops[Data[offset]];
                 sz = op.Mode.AddressingModeSize();
-                if (sz + offset < Data.Length)
+                if (sz + offset <= Data.Length)
                 {
                     bytes = "";
                     for (var len = 0; len < sz; ++len)
                     {
                         bytes += $"${Data[offset + len].ToHex()} ";
                     }
-
                     bytes = bytes.Trim();
                     opCode = FormatOpCode(Ops.Ops[Data[offset]], offset);
                     var line = new AssemblerLine(address, bytes, opCode, AssemblerLine.FormatType.Opcode, sz);
