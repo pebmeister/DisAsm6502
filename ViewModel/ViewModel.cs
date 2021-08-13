@@ -14,6 +14,7 @@ using static DisAsm6502.Extensions;
 
 namespace DisAsm6502.ViewModel
 {
+
     /// <summary>
     /// Class to display model
     /// </summary>
@@ -27,6 +28,18 @@ namespace DisAsm6502.ViewModel
             set
             {
                 _owner = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private Collection<Tuple<int, byte>> _immediateValues = new Collection<Tuple<int, byte>>();
+
+        public Collection<Tuple<int, byte>> ImmediateValues
+        {
+            get => _immediateValues;
+            set
+            {
+                _immediateValues = value;
                 OnPropertyChanged();
             }
         }
@@ -166,6 +179,8 @@ namespace DisAsm6502.ViewModel
         {
             LocalSymbols.Clear();
             UsedLocalSymbols.Clear();
+            ImmediateValues.Clear();
+
             var index = 0;
             foreach (var assemblerLine in AssemblerLineCollection)
             {
@@ -612,6 +627,7 @@ namespace DisAsm6502.ViewModel
             LocalSymbols.Clear();
             UsedSymbols.Clear();
             UsedLocalSymbols.Clear();
+            ImmediateValues.Clear();
 
             lock (AssemblerLineCollectionLock)
             {
@@ -691,16 +707,84 @@ namespace DisAsm6502.ViewModel
                 // Rebuild lines with possible new lables
                 foreach (var oldLine in temp)
                 {
-                    var line = BuildOpCode(oldLine.Address - LoadAddress + (BinFile ? 0 : 2),
-                        (AssemblerLine.FormatType) oldLine.Format);
+                    var offset = oldLine.Address - LoadAddress + (BinFile ? 0 : 2);
+
+                    var line = BuildOpCode(offset, (AssemblerLine.FormatType) oldLine.Format);
                     if (line != null)
                     {
                         line.RowIndex = index++;
                         AssemblerLineCollection.Add(line);
+
+                        if (line.Format == (int) AssemblerLine.FormatType.Opcode)
+                        {
+                            var op = Ops.Ops[Data[offset]];
+                            if (op.Mode == AddressingModes.Im)
+                            {
+                                ImmediateValues.Add(new Tuple<int, byte>(line.RowIndex, Data[offset + 1]));
+                            }
+                        }
                     }
                     else
                     {
                         break;
+                    }
+                }
+
+                if (LoadAddress > 0)
+                {
+                    var i = 1;
+                    while (i < ImmediateValues.Count)
+                    {
+                        if (ImmediateValues[i].Item1 - ImmediateValues[i - 1].Item1 < 10)
+                        {
+                            var a = ImmediateValues[i - 1].Item2 + ImmediateValues[i].Item2 * 256;
+                            if (IsSymLocal(a))
+                            {
+                                if (LocalSymbols.TryGetValue(a, out var sym))
+                                {
+                                    if (!UsedLocalSymbols.ContainsKey(a))
+                                    {
+                                        UsedLocalSymbols.Add(a, sym);
+                                    }
+
+                                    AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes =
+                                        AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes
+                                            .Replace($"${ImmediateValues[i - 1].Item2.ToHex()}", $"<{sym}");
+
+                                    AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes =
+                                        AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes
+                                            .Replace($"${ImmediateValues[i].Item2.ToHex()}", $">{sym}");
+                                }
+
+                                ++i;
+                            }
+                            else
+                            {
+                                a = ImmediateValues[i - 1].Item2 * 256 + ImmediateValues[i].Item2;
+                                if (IsSymLocal(a))
+                                {
+                                    if (LocalSymbols.TryGetValue(a, out var sym))
+                                    {
+                                        if (!UsedLocalSymbols.ContainsKey(a))
+                                        {
+                                            UsedLocalSymbols.Add(a, sym);
+                                        }
+
+                                        AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes =
+                                            AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes
+                                                .Replace($"${ImmediateValues[i - 1].Item2.ToHex()}", $">{sym}");
+
+                                        AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes =
+                                            AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes
+                                                .Replace($"${ImmediateValues[i].Item2.ToHex()}", $"<{sym}");
+                                    }
+
+                                    ++i;
+                                }
+                            }
+                        }
+
+                        ++i;
                     }
                 }
 

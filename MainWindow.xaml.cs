@@ -134,7 +134,7 @@ namespace DisAsm6502
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show(this, $"Error saving {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                        _ = MessageBox.Show(this, $"Error saving {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
                             MessageBoxButton.OK);
                     }
 
@@ -197,7 +197,7 @@ namespace DisAsm6502
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show(this, $"Error saving {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                        _ = MessageBox.Show(this, $"Error saving {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
                             MessageBoxButton.OK);
                     }
                     e.Command.SetIsRunning(false);
@@ -250,6 +250,7 @@ namespace DisAsm6502
                     }
 
                     View.UsedSymbols.Clear();
+                    View.ImmediateValues.Clear();
 
                     FileName = openFileDlg.FileName;
                     var fi = new FileInfo(FileName);
@@ -261,7 +262,7 @@ namespace DisAsm6502
                         }
                         catch (Exception ex)
                         {
-                            MessageBox.Show(this, $"Error loading {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                            _ = MessageBox.Show(this, $"Error loading {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
                                 MessageBoxButton.OK);
                         }
 
@@ -282,7 +283,7 @@ namespace DisAsm6502
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show(this, $"Error loading {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                        _ = MessageBox.Show(this, $"Error loading {fi.Name}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
                             MessageBoxButton.OK);
                     }
                     e.Command.SetIsRunning(false);
@@ -340,7 +341,7 @@ namespace DisAsm6502
                                 sz += items[index].Size;
                             }
 
-                            format |= (sz << 8) & ~0xFF;
+                            format |= sz << 8;
                             count = 1;
                         }
                         for (var index = 0; index < count; ++index)
@@ -445,7 +446,7 @@ namespace DisAsm6502
                             }
                             catch (Exception ex)
                             {
-                                MessageBox.Show(this, $"Error parsing {text}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
+                                _ = MessageBox.Show(this, $"Error parsing {text}.\n\n{ex.Message}.", $"DisAsm6502 {GetAssemblyFileVersion()}",
                                     MessageBoxButton.OK);
                             }
                         }
