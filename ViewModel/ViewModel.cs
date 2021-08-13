@@ -696,6 +696,8 @@ namespace DisAsm6502.ViewModel
                 var index = 0;
                 LocalSymbols.Clear();
                 UsedLocalSymbols.Clear();
+                ImmediateValues.Clear();
+
                 ResetIndexes(0, LoadAddress, AssemblerLineCollection.Count);
                 BuildLocalSymbols();
 
