@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using DisAsm6502.Model;
-using Microsoft.SqlServer.Server;
 using static DisAsm6502.Extensions;
 
 // ReSharper disable StringLiteralTypo
@@ -64,8 +63,6 @@ namespace DisAsm6502.ViewModel
 
         /// <summary>
         /// True if initial construction Assembler Lines
-        /// Do not recalculate lables after each line
-        /// Do so when construction is complete
         /// </summary>
         public bool Building
         {
@@ -192,12 +189,13 @@ namespace DisAsm6502.ViewModel
         /// </summary>
         /// <param name="symAddress">address of symbol</param>
         /// <param name="len">length of address (1 for page zero 2 for all others</param>
+        /// <param name="found"></param>
         /// <returns>symbol</returns>
-        private string GetSymCommon(int symAddress, int len)
+        private string GetSymCommon(int symAddress, int len, out bool found)
         {
             const int localSymRange = 128;
             const int externSymRange = 2;
-
+            found = false;
             var sym = len == 1 ? $"${symAddress.ToHex()}" : $"${symAddress.ToHexWord()}";
             if (LoadAddress != 0 && IsSymLocal(symAddress))
             {
@@ -224,6 +222,7 @@ namespace DisAsm6502.ViewModel
                         sym = $"{sym} + {range}";
                     }
 
+                    found = true;
                     return sym;
                 }
             }
@@ -247,6 +246,7 @@ namespace DisAsm6502.ViewModel
                         sym = $"{sym} + {range}";
                     }
 
+                    found = true;
                     return sym;
                 }
             }
@@ -258,20 +258,23 @@ namespace DisAsm6502.ViewModel
         /// Get a 2 byte symbol
         /// </summary>
         /// <param name="symAddress">2 byte address</param>
+        /// <param name="found"></param>
         /// <returns>symbol for address</returns>
-        private string GetWordSym(int symAddress)
+        private string GetWordSym(int symAddress, out bool found)
         {
-            return GetSymCommon(symAddress, 2);
+            return GetSymCommon(symAddress, 2, out found);
         }
 
         /// <summary>
         /// Get a 1 byte symbol
         /// </summary>
         /// <param name="symAddress">1 byte adddress</param>
+        /// <param name="found"></param>
         /// <returns>symbol for address</returns>
-        private string GetByteSym(int symAddress)
+        private string GetByteSym(int symAddress, out bool  found)
         {
-            return GetSymCommon(symAddress, 1);
+            found = true;
+            return GetSymCommon(symAddress, 1, out _);
         }
 
         /// <summary>
@@ -279,8 +282,9 @@ namespace DisAsm6502.ViewModel
         /// </summary>
         /// <param name="op">Opcode to format</param>
         /// <param name="offset">offset of Data to format</param>
+        /// <param name="symFound"></param>
         /// <returns>formatted opcode</returns>
-        private string FormatOpCode(Op op, int offset)
+        private string FormatOpCode(Op op, int offset, out bool symFound)
         {
             var str = $"{op.Opcode.ToUpperInvariant()} ";
             var symAddress = offset + 2 < Data.Length
@@ -294,6 +298,7 @@ namespace DisAsm6502.ViewModel
             string sym;
             int target;
             int d;
+            symFound = true;
             // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
             switch (op.Mode)
             {
@@ -306,57 +311,57 @@ namespace DisAsm6502.ViewModel
                     break;
 
                 case AddressingModes.Zp:
-                    sym = GetByteSym(pgZeroSymAddress);
+                    sym = GetByteSym(pgZeroSymAddress, out symFound);
                     str += $"{sym}";
                     break;
 
                 case AddressingModes.Zpi:
-                    sym = GetByteSym(pgZeroSymAddress);
+                    sym = GetByteSym(pgZeroSymAddress, out symFound);
                     str += $"({sym})";
                     break;
 
                 case AddressingModes.Zpx:
-                    sym = GetByteSym(pgZeroSymAddress);
+                    sym = GetByteSym(pgZeroSymAddress, out symFound);
                     str += $"{sym},x";
                     break;
 
                 case AddressingModes.Zpy:
-                    sym = GetByteSym(pgZeroSymAddress);
+                    sym = GetByteSym(pgZeroSymAddress, out symFound);
                     str += $"{sym},y";
                     break;
 
                 case AddressingModes.Zpix:
-                    sym = GetByteSym(pgZeroSymAddress);
+                    sym = GetByteSym(pgZeroSymAddress, out symFound);
                     str += $"({sym},x)";
                     break;
 
                 case AddressingModes.Zpiy:
-                    sym = GetByteSym(pgZeroSymAddress);
+                    sym = GetByteSym(pgZeroSymAddress, out symFound);
                     str += $"({sym}),y";
                     break;
 
                 case AddressingModes.A:
-                    sym = GetWordSym(symAddress);
+                    sym = GetWordSym(symAddress, out symFound);
                     str += sym;
                     break;
 
                 case AddressingModes.Aix:
-                    sym = GetWordSym(symAddress);
+                    sym = GetWordSym(symAddress, out symFound);
                     str += $"({sym},x)";
                     break;
 
                 case AddressingModes.Ax:
-                    sym = GetWordSym(symAddress);
+                    sym = GetWordSym(symAddress, out symFound);
                     str += $"{sym},x";
                     break;
 
                 case AddressingModes.Ay:
-                    sym = GetWordSym(symAddress);
+                    sym = GetWordSym(symAddress, out symFound);
                     str += $"{sym},y";
                     break;
 
                 case AddressingModes.Ind:
-                    sym = GetWordSym(symAddress);
+                    sym = GetWordSym(symAddress, out symFound);
                     str += $"({sym})";
                     break;
 
@@ -365,7 +370,7 @@ namespace DisAsm6502.ViewModel
                         ? (-1 & ~0xFF) | Data[offset + 1]
                         : Data[offset + 1];
                     target = LoadAddress + offset + d + (BinFile ? 2 : 0);
-                    sym = GetWordSym(target);
+                    sym = GetWordSym(target, out symFound);
                     str += sym;
                     break;
 
@@ -374,7 +379,7 @@ namespace DisAsm6502.ViewModel
                         ? (-1 & ~0xFF) | Data[offset + 1]
                         : Data[offset + 1];
                     target = LoadAddress + offset + d + (BinFile ? 2 : 0);
-                    sym = GetWordSym(target);
+                    sym = GetWordSym(target, out symFound);
                     str += sym;
                     break;
 
@@ -430,9 +435,10 @@ namespace DisAsm6502.ViewModel
                         bytes += $"${Data[offset + len].ToHex()} ";
                     }
                     bytes = bytes.Trim();
-                    opCode = FormatOpCode(Ops.Ops[Data[offset]], offset);
+                    opCode = FormatOpCode(Ops.Ops[Data[offset]], offset, out bool foundSymFound);
                     var line = new AssemblerLine(address, bytes, opCode, AssemblerLine.FormatType.Opcode, sz);
                     line.PropertyChanged += LineOnPropertyChanged;
+                    line.UnresolvedLabel = !foundSymFound;
                     return line;
                 }
 
@@ -677,7 +683,10 @@ namespace DisAsm6502.ViewModel
                     {
                         line.RowIndex = index++;
                         AssemblerLineCollection.Add(line);
-
+                        if (line.UnresolvedLabel)
+                        {
+                            // MessageBox.Show("Hi");
+                        }
                         if (line.Format == (int) AssemblerLine.FormatType.Opcode)
                         {
                             var op = Ops.Ops[Data[offset]];
@@ -901,13 +910,11 @@ namespace DisAsm6502.ViewModel
         /// <param name="e">parameters chamged</param>
         private void LineOnPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (string.Compare(e.PropertyName, nameof(Format), StringComparison.CurrentCultureIgnoreCase) != 0)
-            {
-                return;
-            }
-
             var line = (AssemblerLine) sender;
-            FormatLine(line, (AssemblerLine.FormatType) line.Format);
+            if (string.Compare(e.PropertyName, "Format", StringComparison.CurrentCultureIgnoreCase) == 0)
+            {
+                FormatLine(line, (AssemblerLine.FormatType) line.Format);
+            }
         }
 
         /// <summary>

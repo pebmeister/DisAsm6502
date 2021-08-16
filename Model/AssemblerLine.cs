@@ -126,6 +126,18 @@ namespace DisAsm6502.Model
             }
         }
 
+        private bool _unResolvedLabel;
+
+        public bool UnresolvedLabel
+        {
+            get => _unResolvedLabel;
+            set
+            {
+                _unResolvedLabel = value;
+                OnPropertyChanged();
+            }
+        }
+
         public AssemblerLine()
         {
         }
@@ -137,6 +149,7 @@ namespace DisAsm6502.Model
             OpCodes = opcodes;
             Format = (int)format;
             Size = sz;
+            UnresolvedLabel = false;
         }
 
         public override string ToString()
