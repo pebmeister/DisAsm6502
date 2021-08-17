@@ -13,7 +13,6 @@ using static DisAsm6502.Extensions;
 
 namespace DisAsm6502.ViewModel
 {
-
     /// <summary>
     /// Class to display model
     /// </summary>
@@ -287,18 +286,15 @@ namespace DisAsm6502.ViewModel
         private string FormatOpCode(Op op, int offset, out bool symFound)
         {
             var str = $"{op.Opcode.ToUpperInvariant()} ";
-            var symAddress = offset + 2 < Data.Length
-                ? Data[offset + 1] + Data[offset + 2] * 256
-                : -1;
+            var symAddress = offset + 2 < Data.Length ? Data[offset + 1] + Data[offset + 2] * 256 : -1;
 
-            var pgZeroSymAddress = offset + 1 < Data.Length
-                ? Data[offset + 1]
-                : -1;
+            var pgZeroSymAddress = offset + 1 < Data.Length ? Data[offset + 1] : -1;
 
             string sym;
             int target;
             int d;
             symFound = true;
+
             // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
             switch (op.Mode)
             {
@@ -366,18 +362,14 @@ namespace DisAsm6502.ViewModel
                     break;
 
                 case AddressingModes.R:
-                    d = (Data[offset + 1] & 0x80) == 0x80
-                        ? (-1 & ~0xFF) | Data[offset + 1]
-                        : Data[offset + 1];
+                    d = (Data[offset + 1] & 0x80) == 0x80 ? (-1 & ~0xFF) | Data[offset + 1] : Data[offset + 1];
                     target = LoadAddress + offset + d + (BinFile ? 2 : 0);
                     sym = GetWordSym(target, out symFound);
                     str += sym;
                     break;
 
                 case AddressingModes.Zr:
-                    d = (Data[offset + 1] & 0x80) == 0x80
-                        ? (-1 & ~0xFF) | Data[offset + 1]
-                        : Data[offset + 1];
+                    d = (Data[offset + 1] & 0x80) == 0x80 ? (-1 & ~0xFF) | Data[offset + 1] : Data[offset + 1];
                     target = LoadAddress + offset + d + (BinFile ? 2 : 0);
                     sym = GetWordSym(target, out symFound);
                     str += sym;
@@ -489,6 +481,10 @@ namespace DisAsm6502.ViewModel
                                 bytesOp += $"\"{b}";
                                 break;
                             case 1:
+                                if (b == '"')
+                                {
+                                    bytesOp += "\\\"";
+                                }
                                 bytesOp += b;
                                 break;
                             default:
@@ -673,20 +669,17 @@ namespace DisAsm6502.ViewModel
                 AssemblerLineCollection.CopyTo(temp, 0);
                 AssemblerLineCollection.Clear();
 
+                var brkCount = 0;
                 // Rebuild lines with possible new lables
                 foreach (var oldLine in temp)
                 {
                     var offset = oldLine.Address - LoadAddress + (BinFile ? 0 : 2);
-
                     var line = BuildOpCode(offset, (AssemblerLine.FormatType) oldLine.Format);
                     if (line != null)
                     {
                         line.RowIndex = index++;
                         AssemblerLineCollection.Add(line);
-                        if (line.UnresolvedLabel)
-                        {
-                            // MessageBox.Show("Hi");
-                        }
+
                         if (line.Format == (int) AssemblerLine.FormatType.Opcode)
                         {
                             var op = Ops.Ops[Data[offset]];
@@ -694,6 +687,26 @@ namespace DisAsm6502.ViewModel
                             {
                                 ImmediateValues.Add(new Tuple<int, byte>(line.RowIndex, Data[offset + 1]));
                             }
+
+                            if (Data[offset] == 0)
+                            {
+                                ++brkCount;
+                                if (brkCount <= 1)
+                                {
+                                    continue;
+                                }
+
+                                AssemblerLineCollection[AssemblerLineCollection.Count -2].UnresolvedLabel = true;
+                                AssemblerLineCollection[AssemblerLineCollection.Count - 1].UnresolvedLabel = true;
+                            }
+                            else
+                            {
+                                brkCount = 0;
+                            }
+                        }
+                        else
+                        {
+                            brkCount = 0;
                         }
                     }
                     else
@@ -707,52 +720,37 @@ namespace DisAsm6502.ViewModel
                     var i = 1;
                     while (i < ImmediateValues.Count)
                     {
+                        var lo = '<';
+                        var hi = '>';
+
                         if (ImmediateValues[i].Item1 - ImmediateValues[i - 1].Item1 < 10)
                         {
-                            var a = ImmediateValues[i - 1].Item2 + ImmediateValues[i].Item2 * 256;
-                            if (IsSymLocal(a))
+                            for (var order = 0; order < 2; ++order)
                             {
-                                if (LocalSymbols.TryGetValue(a, out var sym))
+                                var address = ImmediateValues[i - 1].Item2 * (order == 0 ? 1 : 256) + ImmediateValues[i].Item2 * (order == 0 ? 256 : 1);
+
+                                if (!IsSymLocal(address)) continue;
+
+                                if (LocalSymbols.TryGetValue(address, out var sym))
                                 {
-                                    if (!UsedLocalSymbols.ContainsKey(a))
+                                    if (!UsedLocalSymbols.ContainsKey(address))
                                     {
-                                        UsedLocalSymbols.Add(a, sym);
+                                        UsedLocalSymbols.Add(address, sym);
                                     }
 
+                                    var byteLo = order == 0 ? lo : hi;
+                                    var byteHi = order == 0 ? hi : lo;
                                     AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes =
                                         AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes
-                                            .Replace($"${ImmediateValues[i - 1].Item2.ToHex()}", $"<{sym}");
+                                            .Replace($"${ImmediateValues[i - 1].Item2.ToHex()}", $"{byteLo}{sym}");
 
                                     AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes =
                                         AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes
-                                            .Replace($"${ImmediateValues[i].Item2.ToHex()}", $">{sym}");
+                                            .Replace($"${ImmediateValues[i].Item2.ToHex()}", $"{byteHi}{sym}");
                                 }
 
                                 ++i;
-                            }
-                            else
-                            {
-                                a = ImmediateValues[i - 1].Item2 * 256 + ImmediateValues[i].Item2;
-                                if (IsSymLocal(a))
-                                {
-                                    if (LocalSymbols.TryGetValue(a, out var sym))
-                                    {
-                                        if (!UsedLocalSymbols.ContainsKey(a))
-                                        {
-                                            UsedLocalSymbols.Add(a, sym);
-                                        }
-
-                                        AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes =
-                                            AssemblerLineCollection[ImmediateValues[i - 1].Item1].OpCodes
-                                                .Replace($"${ImmediateValues[i - 1].Item2.ToHex()}", $">{sym}");
-
-                                        AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes =
-                                            AssemblerLineCollection[ImmediateValues[i].Item1].OpCodes
-                                                .Replace($"${ImmediateValues[i].Item2.ToHex()}", $"<{sym}");
-                                    }
-
-                                    ++i;
-                                }
+                                break;
                             }
                         }
 
