@@ -114,7 +114,7 @@ namespace DisAsm6502
                             var now = DateTime.Now;
 
                             writer.WriteLine(
-                                $"; {fi.Name} created by DisAsm6502 {GetAssemblyFileVersion()}\n; at {now.ToShortDateString()} {now.ToShortTimeString()}");
+                                $"; {fi.Name} created by DisAsm6502 {GetAssemblyFileVersion()}\n; {now.ToShortDateString()} {now.ToShortTimeString()}");
                             writer.WriteLine();
 
                             foreach (var s in View.SymCollection)
@@ -270,7 +270,7 @@ namespace DisAsm6502
                         return;
                     }
 
-                    View.BinFile = string.Compare(fi.Extension, ".bin", StringComparison.CurrentCultureIgnoreCase) == 0;
+                    View.BinFile = string.Compare(fi.Extension, ".prg", StringComparison.CurrentCultureIgnoreCase) != 0;
                     // Read the contents of the file into a stream
                     try
                     {

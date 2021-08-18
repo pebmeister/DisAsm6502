@@ -118,7 +118,10 @@ namespace DisAsm6502.ViewModel
             get => _loadAddress;
             set
             {
-                if (value < 0 || value > 0xFFFF) return;
+                if (value < 0 || value > 0xFFFF)
+                {
+                    return;
+                }
 
                 _loadAddress = value;
                 OnPropertyChanged();
@@ -287,12 +290,12 @@ namespace DisAsm6502.ViewModel
         {
             var str = $"{op.Opcode.ToUpperInvariant()} ";
             var symAddress = offset + 2 < Data.Length ? Data[offset + 1] + Data[offset + 2] * 256 : -1;
-
             var pgZeroSymAddress = offset + 1 < Data.Length ? Data[offset + 1] : -1;
 
             string sym;
             int target;
             int d;
+
             symFound = true;
 
             // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
@@ -696,7 +699,7 @@ namespace DisAsm6502.ViewModel
                                     continue;
                                 }
 
-                                AssemblerLineCollection[AssemblerLineCollection.Count -2].UnresolvedLabel = true;
+                                AssemblerLineCollection[AssemblerLineCollection.Count - 2].UnresolvedLabel = true;
                                 AssemblerLineCollection[AssemblerLineCollection.Count - 1].UnresolvedLabel = true;
                             }
                             else
@@ -720,8 +723,8 @@ namespace DisAsm6502.ViewModel
                     var i = 1;
                     while (i < ImmediateValues.Count)
                     {
-                        var lo = '<';
-                        var hi = '>';
+                        const char lo = '<';
+                        const char hi = '>';
 
                         if (ImmediateValues[i].Item1 - ImmediateValues[i - 1].Item1 < 10)
                         {
@@ -729,7 +732,10 @@ namespace DisAsm6502.ViewModel
                             {
                                 var address = ImmediateValues[i - 1].Item2 * (order == 0 ? 1 : 256) + ImmediateValues[i].Item2 * (order == 0 ? 256 : 1);
 
-                                if (!IsSymLocal(address)) continue;
+                                if (!IsSymLocal(address))
+                                {
+                                    continue;
+                                }
 
                                 if (LocalSymbols.TryGetValue(address, out var sym))
                                 {
