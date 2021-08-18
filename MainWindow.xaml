@@ -29,23 +29,23 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="16" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" VerticalAlignment="Center" Grid.Column="0" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Red" Text="{Binding Label}">
+                <TextBlock Grid.Row="0" VerticalAlignment="Center" Grid.Column="0" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Red" Text="{Binding Label, Mode=OneWay}">
                 </TextBlock>
                 <TextBlock Grid.Row="0" VerticalAlignment="Center" Grid.Column="1" Grid.ColumnSpan="2" FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Blue" Text="{Binding OpCodes}" >
                     <TextBlock.Style>
                         <Style>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding UnresolvedLabel}" Value="True">
+                                <DataTrigger Binding="{Binding UnresolvedLabel, Mode=OneWay}" Value="True">
                                     <Setter Property="TextBlock.Background" Value="#22FFFF00"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding UnresolvedLabel}" Value="False">
+                                <DataTrigger Binding="{Binding UnresolvedLabel, Mode=OneWay}" Value="False">
                                     <Setter Property="TextBlock.Background" Value="Transparent"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <TextBlock Grid.Row ="0" VerticalAlignment="Center" Grid.Column="3"  FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Green" Text="{Binding Comment}" >
+                <TextBlock Grid.Row ="0" VerticalAlignment="Center" Grid.Column="3"  FontFamily="Courier New" FontSize="14" FontWeight="Bold" Foreground="Green" Text="{Binding Comment, Mode=OneWay}" >
                 </TextBlock>
             </Grid>
         </DataTemplate>

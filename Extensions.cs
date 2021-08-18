@@ -125,7 +125,7 @@ namespace DisAsm6502
         {
             foreach (var (address, format) in items)
             {
-                var index = collection.FindAddress(address);
+                var index = BSearch(collection, address, (line, i) => line.Address.CompareTo(i));
                 if (index >= 0 && index < collection.Count)
                 {
                     collection[index].Format = format;
@@ -134,7 +134,10 @@ namespace DisAsm6502
             items.Clear();
         }
 
-        internal static int FindAddress(this ObservableCollection<AssemblerLine> collection, int address)
+
+        internal delegate int Compare<in T, in T2>(T a, T2 b);
+
+        internal static int BSearch<T, T2>(this Collection<T> collection, T2 address, Compare<T, T2> cmp)
         {
             var low = 0;
             var max = collection.Count - 1;
@@ -143,20 +146,23 @@ namespace DisAsm6502
             while (low <= high)
             {
                 var guess = low + (high - low) / 2;
-                if (collection[guess].Address < address)
+                var c = cmp(collection[guess], address);
+                if (c < 0)
                 {
                     if (low == guess)
                     {
-                        return collection[high].Address == address ? high : -1;
+                        return cmp(collection[high], address) == 0 ? high : -1;
                     }
+
                     low = guess;
                 }
-                else if (collection[guess].Address > address)
+                else if (c > 0)
                 {
                     if (high == guess)
                     {
-                        return collection[low].Address == address ? low : -1;
+                        return cmp(collection[low], address) == low ? low : -1;
                     }
+
                     high = guess;
                 }
                 else
@@ -164,6 +170,7 @@ namespace DisAsm6502
                     return guess;
                 }
             }
+
             return -1;
         }
 
